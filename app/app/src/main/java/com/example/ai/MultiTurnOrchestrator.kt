@@ -20,6 +20,16 @@ class MultiTurnOrchestrator(
     private val toolExecutor: ToolCallExecutor,
     private val maxTurns: Int = 5
 ) {
+
+    private companion object {
+        /**
+         * Model reasoning memakai `max_tokens` yang sama dengan jawaban. Diuji:
+         * dengan 120 token, stream habis (`finish_reason: length`) sebelum
+         * menghasilkan satu karakter jawaban. 1024 default `ChatClient` juga
+         * tidak cukup untuk model thinking yang panjang.
+         */
+        const val MAX_TOKENS = 4096
+    }
     /** Last successful tool result JSON — for post-validation. */
     var lastToolResultJson: String? = null
         private set
@@ -124,7 +134,11 @@ class MultiTurnOrchestrator(
             val streamStartedAt = System.currentTimeMillis()
             chatClient.chatStreamWithTools(
                 systemPrompt = systemPrompt,
-                history = messages
+                history = messages,
+                // Default 1024 terlalu kecil untuk model reasoning: token
+                // thinking berasal dari budget yang sama dan stream berakhir
+                // `finish_reason: length` tanpa sempat menjawab.
+                maxTokens = MAX_TOKENS
             ).catch { err ->
                 ChatLogger.e("HartaKu/MTOrch", "chatStreamWithTools failed turn ${turn + 1}", err)
                 if (!isClosedForSend) send("Maaf, saya sedang bermasalah. Coba lagi ya.")

@@ -230,6 +230,12 @@ class NimApiClient(
         var doneSent = false
         var promptTokens = 0
         var completionTokens = 0
+        // Model reasoning (gpt-oss, nemotron reasoning) streamed di
+        // `delta.reasoning_content`, bukan `delta.content`. Kalau tidak
+        // dilacak, seluruh token thinking phase terpakai dari max_tokens
+        // dan stream berakhir `finish_reason: length` tanpa satu pun jawaban.
+        var reasoningChars = 0
+        var truncatedByLength = false
 
         response.body?.byteStream()?.bufferedReader()?.use { reader ->
             while (true) {
@@ -255,6 +261,9 @@ class NimApiClient(
                         val delta = choice.optJSONObject("delta")
                         if (delta != null) {
                             val content = if (!delta.isNull("content")) delta.optString("content", "") else ""
+                            if (!delta.isNull("reasoning_content")) {
+                                reasoningChars += delta.optString("reasoning_content", "").length
+                            }
                             if (content.isNotEmpty()) {
                                 accumulatedContent.append(content)
                                 emit(ChatStreamEvent.Delta(content))
@@ -281,6 +290,7 @@ class NimApiClient(
 
                         val finishReason = if (!choice.isNull("finish_reason")) choice.optString("finish_reason") else null
                         if (finishReason != null) {
+                            if (finishReason == "length") truncatedByLength = true
                             when (finishReason) {
                                 "stop" -> {
                                     emit(ChatStreamEvent.Done(accumulatedContent.toString()))
@@ -310,7 +320,21 @@ class NimApiClient(
             emit(ChatStreamEvent.Usage(promptTokens, completionTokens))
         }
             // Stream ended without a finish_reason — emit Done so orchestrator stops looping
-            if (!doneSent) emit(ChatStreamEvent.Done(accumulatedContent.toString()))
+            if (!doneSent) {
+                val text = accumulatedContent.toString()
+                // Model reasoning habis token sebelum sempat menjawab. Tanpa ini UI
+                // menampilkan balasan kosong tanpa penjelasan.
+                emit(
+                    ChatStreamEvent.Done(
+                        if (text.isBlank() && truncatedByLength && reasoningChars > 0) {
+                            "Model sudah berpikir panjang tapi kehabisan token sebelum menjawab. " +
+                                "Coba pertanyaan yang lebih singkat."
+                        } else {
+                            text
+                        }
+                    )
+                )
+            }
     }.flowOn(Dispatchers.IO)
 
     /**
