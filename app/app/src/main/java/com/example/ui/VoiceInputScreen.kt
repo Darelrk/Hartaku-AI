@@ -120,7 +120,7 @@ fun VoiceInputScreen(
             } catch (e: Exception) {
                 isProcessing = false
                 processingStage = "none"
-                error = "Gagal memproses AI: ${e.message}"
+                error = "Gagal menyimpan: ${e.message}"
                 // Wait briefly and navigate to Manual screen
                 delay(1000)
                 onClose(text)

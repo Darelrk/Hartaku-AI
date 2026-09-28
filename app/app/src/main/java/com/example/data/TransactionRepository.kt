@@ -30,6 +30,13 @@ open class TransactionRepository(
     open fun getTransactionsByKeyword(keyword: String): Flow<List<Transaction>> = dao.getTransactionsByKeyword(keyword)
     open fun getTransactionsByCategoryName(categoryName: String): Flow<List<Transaction>> = dao.getTransactionsByCategoryName(categoryName)
     open suspend fun insertTransaction(transaction: Transaction) {
+        // Titik satu-satunya yang dilalui manual, suara, dan AI parser.
+        // Tanpa guard di sini, teks tanpa nominal (extractAmount mengembalikan
+        // 0.0) tersimpan sebagai transaksi Rp 0 yang ikut diam-diam mencemari
+        // setiap total, breakdown kategori, dan konteks AI.
+        require(transaction.amount.isFinite() && transaction.amount > 0.0) {
+            "Nominal transaksi harus lebih besar dari nol"
+        }
         dao.insertTransaction(transaction)
         onInserted(transaction)
     }

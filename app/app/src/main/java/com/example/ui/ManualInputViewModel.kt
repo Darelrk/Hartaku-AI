@@ -185,6 +185,21 @@ class ManualInputViewModel(
                     }
                 }
 
+                // Validasi SEMUA dulu sebelum menyimpan apa pun. Parser AI bisa
+                // mengembalikan beberapa transaksi sekaligus; kalau hanya yang
+                // diperiksa per-item, transaksi yang sudah tersimpan pertama
+                // akan menggantung kalau yang berikutnya tidak valid.
+                val invalid = txsToSave.firstOrNull { !it.amount.isFinite() || it.amount <= 0.0 }
+                if (invalid != null) {
+                    _uiState.update {
+                        it.copy(
+                            isProcessing = false,
+                            error = "Nominal untuk \"${invalid.description}\" harus lebih besar dari nol"
+                        )
+                    }
+                    return@launch
+                }
+
                 // Simpan transaksi (skip di BILL mode)
                 txsToSave.forEach { transactionRepo.insertTransaction(it) }
 
