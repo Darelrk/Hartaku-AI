@@ -1,0 +1,44 @@
+/app/app/build/
+/app/build/
+/app/.gradle/
+/app/.kotlin/
+/app/local.properties
+/app/.idea/
+*.png
+*.zip
+*.db
+*.db-shm
+*.db-wal
+/db_*
+/hartaku_*
+/tiktok_*
+/home_*
+/window_*
+/screen_*
+/screenshot*
+/test*
+/nul
+/13
+/20
+/db_cleaned
+/db_copy2
+/db_copy4
+/db_raw
+/db_raw_check
+
+# --- Sampah sesi / crash dumps ---
+hs_err_pid*.log
+replay_pid*.log
+TASK_FAILED=*
+date('now'
+strftime('%s'
+/db_copy_wal
+/CUsers*.md
+
+# --- Log build/test (artefak, bukan sumber) ---
+*.log
+
+# --- Init script & output build sementara (scaffold QA, bukan sumber) ---
+/app/.temporary-*.init.gradle
+.temporary-*-build-output/
+.omp/

@@ -1,0 +1,71 @@
+{
+  "_note1": "KEEP THIS FILE! Check it into a version control system (VCS) like git.",
+  "_note2": "ObjectBox manages crucial IDs for your object model. See docs for details.",
+  "_note3": "If you have VCS merge conflicts, you must resolve them according to ObjectBox docs.",
+  "entities": [
+    {
+      "id": "1:277417724754682495",
+      "lastPropertyId": "8:3602851898586277195",
+      "name": "TransactionVectorEntity",
+      "properties": [
+        {
+          "id": "1:2549249297146983712",
+          "name": "id",
+          "type": 6,
+          "flags": 1
+        },
+        {
+          "id": "2:155424528532110403",
+          "name": "transactionId",
+          "indexId": "1:3759558134184571915",
+          "type": 5,
+          "flags": 8
+        },
+        {
+          "id": "3:2361731652916477520",
+          "name": "description",
+          "type": 9
+        },
+        {
+          "id": "4:5177627887962482166",
+          "name": "category",
+          "type": 9
+        },
+        {
+          "id": "5:7791703380619277367",
+          "name": "amount",
+          "type": 8
+        },
+        {
+          "id": "6:6399357661997209628",
+          "name": "type",
+          "type": 9
+        },
+        {
+          "id": "7:4008974309142494552",
+          "name": "timestamp",
+          "type": 6
+        },
+        {
+          "id": "8:3602851898586277195",
+          "name": "embedding",
+          "indexId": "2:4347419442552832944",
+          "type": 28,
+          "flags": 8
+        }
+      ],
+      "relations": []
+    }
+  ],
+  "lastEntityId": "1:277417724754682495",
+  "lastIndexId": "2:4347419442552832944",
+  "lastRelationId": "0:0",
+  "lastSequenceId": "0:0",
+  "modelVersion": 5,
+  "modelVersionParserMinimum": 5,
+  "retiredEntityUids": [],
+  "retiredIndexUids": [],
+  "retiredPropertyUids": [],
+  "retiredRelationUids": [],
+  "version": 1
+}
