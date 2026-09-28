@@ -456,25 +456,37 @@ fun List<Budget>.withSpent(
     now: Long = System.currentTimeMillis()
 ): List<Budget> {
     val windowStart = now - 7L * 24 * 60 * 60 * 1000
+    val budgets = this
+
+    // Setiap transaksi hanya boleh dihitung untuk SATU budget. Fallback
+    // kategori sebelumnya dijalankan per budget, jadi transaksi yang
+    // kategorinya dipakai dua budget terhitung dua kali, dan transaksi yang
+    // sudah punya budgetId eksplisit tetap jatuh ke fallback budget lain.
+    // Hasilnya total budget-vs-aktual lebih besar dari pengeluaran nyata.
+    //
+    // Atribusi: budgetId eksplisit menang; kalau tidak ada, kategori memetakan
+    // ke budget PERTAMA yang mengklaimnya.
+    val categoryOwner = HashMap<String, Int>()
+    for (b in budgets) {
+        for (cid in b.parseCategoryIds()) {
+            categoryOwner.putIfAbsent(cid, b.id)
+        }
+    }
+
     return map { budget ->
         val weekly = budget.period.equals("weekly", ignoreCase = true)
         val inWindow = transactions.filter { !weekly || it.timestamp >= windowStart }
         val expenses = inWindow.filter { it.type == TransactionType.EXPENSE }
-        val expenseByBudgetId = expenses
-            .filter { it.budgetId != null }
-            .groupBy { it.budgetId!! }
-            .mapValues { (_, txs) -> txs.sumOf { it.amount } }
-        val expenseByCategory = expenses
-            .groupBy { it.categoryId }
-            .mapValues { (_, txs) -> txs.sumOf { it.amount } }
 
-        // Prefer explicit budgetId attribution (newer transactions carry this).
-        // Fall back to categoryIds for legacy budgets without budgetId wiring.
-        val newSpent = expenseByBudgetId[budget.id]
-            ?: run {
-                val catIds = budget.parseCategoryIds()
-                catIds.sumOf { expenseByCategory[it] ?: 0.0 }
+        val spentByBudgetId = HashMap<Int, Double>()
+        for (tx in expenses) {
+            val owner = tx.budgetId ?: tx.categoryId?.let { categoryOwner[it] }
+            if (owner != null) {
+                spentByBudgetId[owner] = (spentByBudgetId[owner] ?: 0.0) + tx.amount
             }
+        }
+
+        val newSpent = spentByBudgetId[budget.id] ?: 0.0
         val baseIncome = if (weekly) {
             inWindow.filter { it.type == TransactionType.INCOME }.sumOf { it.amount }
         } else {

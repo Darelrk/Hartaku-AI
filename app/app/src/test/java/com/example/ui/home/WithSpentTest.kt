@@ -69,15 +69,23 @@ class WithSpentTest {
     }
 
     @Test
-    fun prefersExplicitBudgetIdAttribution() {
+    fun explicitBudgetIdDoesNotDiscardCategoryMatchedExpenses() {
         val txs = listOf(
             expense(70_000.0, "c1", budgetId = 1),
-            // Kategori c1 juga tercakup budget 1, tapi karena ada budgetId
-            // eksplisit, fallback kategori tidak boleh ditambah lagi.
+            // Tanpa budgetId, jadi jatuh ke pemilik kategori c1 — yang juga
+            // budget 1. Semuanya HARUS terhitung: sebelumnya `?: fallback`
+            // membuat 20.000 ini hilang begitu budget punya satu transaksi
+            // ber-budgetId, sehingga spent lebih kecil dari pengeluaran nyata.
             expense(20_000.0, "c1")
         )
         val result = listOf(budget(1, "[\"c1\"]")).withSpent(txs, 0.0)
-        assertEquals(70_000.0, result.first().spent, 0.001)
+        assertEquals(90_000.0, result.first().spent, 0.001)
+        assertEquals(
+            "tidak boleh ada transaksi yang hilang dari budget mana pun",
+            90_000.0,
+            result.sumOf { it.spent },
+            0.001
+        )
     }
 
     @Test
@@ -155,5 +163,42 @@ class WithSpentTest {
         // Basisnya income 7 hari terakhir (1.000.000), bukan 10.000.000 bulanan.
         assertEquals(500_000.0, weekly.first().amount, 0.001)
         assertEquals(200_000.0, weekly.first().spent, 0.001)
+    }
+
+    @Test
+    fun overlappingCategoriesDoNotDoubleCountTheSameExpense() {
+        val txs = listOf(expense(90_000.0, "c1"))
+        // Dua budget sama-sama mengklaim kategori c1.
+        val result = listOf(
+            budget(1, "[\"c1\"]"),
+            budget(2, "[\"c1\"]")
+        ).withSpent(txs, 0.0)
+
+        assertEquals(90_000.0, result[0].spent, 0.001)
+        assertEquals(
+            "kategori yang sama tidak boleh dihitung dua kali",
+            0.0, result[1].spent, 0.001
+        )
+        assertEquals(
+            "total spent tidak boleh melebihi pengeluaran nyata",
+            90_000.0,
+            result.sumOf { it.spent },
+            0.001
+        )
+    }
+
+    @Test
+    fun explicitBudgetIdWinsOverAnotherBudgetsCategoryFallback() {
+        val txs = listOf(expense(70_000.0, "c1", budgetId = 2))
+        val result = listOf(
+            budget(1, "[\"c1\"]"),
+            budget(2, "[\"c2\"]")
+        ).withSpent(txs, 0.0)
+
+        assertEquals(
+            "budget dengan budgetId eksplisit yang harus mengakui transaksi",
+            70_000.0, result[1].spent, 0.001
+        )
+        assertEquals("budget lain tidak ikut menghitung", 0.0, result[0].spent, 0.001)
     }
 }
