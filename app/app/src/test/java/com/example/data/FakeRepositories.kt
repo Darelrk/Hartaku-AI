@@ -15,7 +15,10 @@ class FakeTransactionRepository : TransactionRepository(StubTransactionDao()) {
 
     override fun getTransactionsByDay(startOfDay: Long, endOfDay: Long): Flow<List<Transaction>> {
         return transactions.map { list ->
-            list.filter { it.timestamp in startOfDay..endOfDay }
+            // Half-open, meniru SQL DAO `timestamp >= :start AND timestamp < :end`.
+            // Jangan pakai `..` di sini: batas inklusif membuat totals
+            // expenditures dan income berbeda pada rentang yang sama.
+            list.filter { it.timestamp in startOfDay until endOfDay }
         }
     }
 
@@ -54,14 +57,14 @@ class FakeTransactionRepository : TransactionRepository(StubTransactionDao()) {
 
     override fun getExpenseInRange(startDay: Long, endDay: Long): Flow<Double> {
         return transactions.map { list ->
-            list.filter { it.type == TransactionType.EXPENSE && it.timestamp in startDay..endDay }.sumOf { it.amount }
+            list.filter { it.type == TransactionType.EXPENSE && it.timestamp in startDay until endDay }.sumOf { it.amount }
         }
     }
 
     // ponytail: delegates getCategoryBreakdownById to an internal helper
     private fun categoryBreakdown(startOfDay: Long, endOfDay: Long): List<CategoryTotal> {
         val list = transactions.value.filter {
-            it.type == TransactionType.EXPENSE && it.timestamp in startOfDay..endOfDay
+            it.type == TransactionType.EXPENSE && it.timestamp in startOfDay until endOfDay
         }
         return list.groupBy { it.category }.map { (catName, trans) ->
             CategoryTotal(name = catName, total = trans.sumOf { it.amount }, categoryId = catName)

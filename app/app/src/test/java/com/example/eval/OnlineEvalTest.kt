@@ -33,6 +33,8 @@ class OnlineEvalTest {
     private data class CaseResult(
         val id: String,
         val toolName: String,
+        val gotTool: String,
+        val gotArgs: String,
         val orchestrationOk: Boolean,
         val modelOk: Boolean,
         val answer: String,
@@ -42,7 +44,9 @@ class OnlineEvalTest {
     private val dayMs = 24L * 60 * 60 * 1000
 
     private fun seedTransactions(repo: FakeTransactionRepository) = runBlocking {
-        val now = System.currentTimeMillis()
+        // Sama dengan EvalHarnessTest: mundur 1 detik agar baris hari-0 tidak
+        // jatuh persis di batas half-open `end` yang diambil saat query.
+        val now = System.currentTimeMillis() - 1_000
         data class Row(
             val amount: Double,
             val description: String,
@@ -85,23 +89,35 @@ class OnlineEvalTest {
             var orchestrationOk = false
             var modelOk = false
             var answer = ""
+            var gotTool = ""
+            var gotArgs = ""
             var error: String? = null
             try {
                 val manager = ChatbotRAGManager(NimApiClient(key), repo)
                 answer = runBlocking { manager.processQuery(c.query) }
                 val toolResult = manager.lastToolResultJson
+                if (toolResult != null) {
+                    // Jejak tool yang benar-benar dijalankan, dibaca dari JSON
+                    // hasil tool — bukan dari `c.toolName` yang hanya berisi
+                    // ekspektasi. `dateRange` tidak diulang query_transactions,
+                    // jadi gotArgs kosong untuk tool itu.
+                    val json = JSONObject(toolResult)
+                    gotTool = json.optString("tool", "")
+                    gotArgs = json.optString("dateRange", "")
+                }
                 orchestrationOk = toolResult != null &&
                     (c.toolResultMustContain.isEmpty() || toolResult.contains(c.toolResultMustContain))
-                if (c.expectNoData) {
-                    modelOk = answer.contains("tidak ada", ignoreCase = true) ||
-                        answer.contains("Belum ada", ignoreCase = true)
+                modelOk = if (c.expectNoData) {
+                    EvalCorpus.answerShowsNoFabricatedAmount(answer)
                 } else {
-                    modelOk = c.expectedAnswerNumbers.all { answer.contains(it) }
+                    c.expectedAnswerNumbers.all { answer.contains(it) }
                 }
             } catch (e: Exception) {
                 error = e.message ?: e.javaClass.simpleName
             }
-            results += CaseResult(c.id, c.toolName, orchestrationOk, modelOk, answer, error)
+            results += CaseResult(
+                c.id, c.toolName, gotTool, gotArgs, orchestrationOk, modelOk, answer, error
+            )
         }
 
         val report = JSONObject().apply {
@@ -114,6 +130,8 @@ class OnlineEvalTest {
                         JSONObject().apply {
                             put("id", r.id)
                             put("tool", r.toolName)
+                            put("gotTool", r.gotTool)
+                            put("gotArgs", r.gotArgs)
                             put("orchestrationOk", r.orchestrationOk)
                             put("modelOk", r.modelOk)
                             put("answer", r.answer)

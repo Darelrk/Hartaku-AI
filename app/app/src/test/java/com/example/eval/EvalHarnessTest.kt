@@ -46,7 +46,13 @@ class EvalHarnessTest {
     )
 
     private fun seedTransactions(repo: FakeTransactionRepository) = runBlocking {
-        val now = System.currentTimeMillis()
+        // Majukan seed 1 detik ke masa lalu. Rentang relatif di
+        // resolveDateRangeMillis berakhir di `now` secara half-open
+        // (`timestamp < end`), jadi baris hari-0 yang bertimestamp persis sama
+        // dengan `now` saat query akan terbuang. Dua pembacaan
+        // System.currentTimeMillis() sering kali jatuh di milidetik yang sama,
+        // sehingga tanpa offset ini angka korpus berubah-ubah antar jalan.
+        val now = System.currentTimeMillis() - 1_000
         listOf(
             Row(85_000.0, "Makanan", "Makanan", TransactionType.EXPENSE, 0),
             Row(45_000.0, "Gojek ke kantor", "Transport", TransactionType.EXPENSE, 0),
@@ -115,12 +121,15 @@ class EvalHarnessTest {
             assertTrue("[${c.id}] jawaban tidak memuat angka $n. Jawaban: $answer", answer.contains(n))
         }
 
-        // 4. Kasus tanpa data: jawaban harus menunjukkan nol, bukan mengarang
-        // nominal. Produksi memang merender "Total: Rp 0", bukan kalimat
-        // "tidak ada", jadi angka_expected di sini adalah "0".
+        // 4. Kasus tanpa data: jawaban tidak boleh mengarang nominal Rupiah.
+        //    Produksi merender "Total: Rp 0" dan fake merender "Tidak ada
+        //    transaksi yang cocok." — keduanya harus lolos, sedangkan jawaban
+        //    berangka seperti "Total: Rp 130.000" harus gagal.
         if (c.expectNoData) {
-            val showsZero = c.expectedAnswerNumbers.all { answer.contains(it) }
-            assertTrue("[$c.id] jawaban harus menunjukkan nilai nol. Jawaban: $answer", showsZero)
+            assertTrue(
+                "[${c.id}] jawaban mengarang nominal. Jawaban: $answer",
+                EvalCorpus.answerShowsNoFabricatedAmount(answer)
+            )
         }
 
         // 4. System prompt benar-benar mendeklarasikan tool ke LLM.
