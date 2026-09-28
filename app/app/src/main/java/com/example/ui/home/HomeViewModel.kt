@@ -29,6 +29,7 @@ import java.util.Calendar
 import java.util.UUID
 import com.example.data.ConversationMessage
 import com.example.data.TransactionSeeder
+import com.example.data.DailyExpense
 
 /**
  * Per-day UI state. Satu instance per dayOffset (-2..+2).
@@ -160,7 +161,34 @@ class HomeViewModel(
                 flow.update { it.copy(budgets = budgets) }
             }
         }
+
+        loadTwoWeek(flow)
     }
+
+    /**
+     * Chart 14 hari sebelumnya tidak pernah terisi: `DayUiState.twoWeekExpense`
+     * hanya punya nilai default dan tidak ada satu pun tempat yang mengisinya,
+     * sehingga slide itu selalu menampilkan "Belum ada data 14 hari" padahal
+     * datanya ada.
+     *
+     * Pengelompokan memakai batas hari lokal yang sama dengan [dayRange] supaya
+     * batarnya tidak bergeser sehari dari angka ringkasan, dan memakai interval
+     * half-open [start, end) seperti query DAO.
+     */
+    private fun loadTwoWeek(flow: MutableStateFlow<DayUiState>) {
+        val now = Calendar.getInstance()
+        val firstDay = now.clone() as Calendar
+        firstDay.add(Calendar.DAY_OF_YEAR, -13)
+        val rangeStart = getStartOfDay(firstDay)
+        val rangeEnd = getEndOfDay(now)
+
+        viewModelScope.launch {
+            transactionRepo.getTransactionsInRange(rangeStart, rangeEnd).collect { txs ->
+                flow.update { it.copy(twoWeekExpense = buildTwoWeekExpense(txs, now)) }
+            }
+        }
+    }
+
 
     private fun requestAiInsight(
         offset: Int,
@@ -324,6 +352,39 @@ class HomeViewModel(
                     ) as T
                 }
             }
+
+        /**
+         * Mengelompokkan transaksi menjadi 14 ember harian (hari-13 s.d. hari-0).
+         * Interval half-open [start, end) mengikuti query DAO, dan batas hari
+         * memakai zona lokal yang sama dengan ringkasan supaya batang chart
+         * tidak bergeser sehari dari angka yang dilihat pengguna.
+         */
+        internal fun buildTwoWeekExpense(txs: List<Transaction>, now: Calendar): TwoWeekExpense {
+            val dayStarts = (-13..0).map { offset ->
+                val c = now.clone() as Calendar
+                c.add(Calendar.DAY_OF_YEAR, offset)
+                getStartOfDay(c)
+            }
+            val expenses = txs.filter { it.type == TransactionType.EXPENSE }
+            val daily = dayStarts.mapIndexed { idx, dayStart ->
+                val endExclusive = dayStarts.getOrNull(idx + 1) ?: getEndOfDay(now)
+                val total = expenses
+                    .filter { it.timestamp >= dayStart && it.timestamp < endExclusive }
+                    .sumOf { it.amount }
+                DailyExpense(dayStart, total)
+            }
+            val prevWeekTotal = daily.take(7).sumOf { it.total }
+            val thisWeekTotal = daily.drop(7).sumOf { it.total }
+            val deltaPct =
+                if (prevWeekTotal == 0.0) null else (thisWeekTotal - prevWeekTotal) / prevWeekTotal * 100.0
+            return TwoWeekExpense(
+                daily = daily,
+                thisWeekTotal = thisWeekTotal,
+                prevWeekTotal = prevWeekTotal,
+                deltaPct = deltaPct,
+                avgDaily = thisWeekTotal / 7.0
+            )
+        }
     }
 }
 
