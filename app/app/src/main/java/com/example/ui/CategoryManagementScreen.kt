@@ -64,6 +64,12 @@ private val COLOR_OPTIONS = listOf(
 @Composable
 fun CategoryManagementScreen(
     onClose: () -> Unit,
+    /**
+     * Membuka arsip kategori. Tanpa ini, teks konfirmasi penghapusan
+     * ("Lihat di 'Lihat yang dihapus' untuk memulihkan") menunjuk ke layar
+     * yang tidak punya jalan masuk sama sekali.
+     */
+    onShowDeleted: () -> Unit = {},
     categoryRepositoryOverride: CategoryRepository? = null
 ) {
     val context = LocalContext.current
@@ -122,6 +128,14 @@ fun CategoryManagementScreen(
                 Text("Kelola Kategori", style = MaterialTheme.typography.headlineMedium, color = GhostWhite)
                 Spacer(modifier = Modifier.weight(1f))
                 Text("${categories.size} kategori", style = MaterialTheme.typography.bodySmall, color = GhostWhite.copy(alpha = 0.5f))
+                Spacer(modifier = Modifier.width(8.dp))
+                TextButton(onClick = onShowDeleted) {
+                    Text(
+                        text = "Lihat yang dihapus",
+                        color = GhostWhite.copy(alpha = 0.6f),
+                        style = MaterialTheme.typography.labelMedium
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(16.dp))

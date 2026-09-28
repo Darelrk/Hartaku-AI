@@ -19,6 +19,7 @@ enum class ScreenRoute {
     SCAN_RECEIPT,
     MANUAL_INPUT,
     CATEGORY_MANAGEMENT,
+    DELETED_CATEGORIES,
     BUDGET_MANAGEMENT,
     DELETED_BUDGETS,
     AI_DIAGNOSTICS
@@ -79,11 +80,23 @@ fun MainScreen() {
             return
         }
         ScreenRoute.CATEGORY_MANAGEMENT -> {
-            CategoryManagementScreen(onClose = { currentScreen = ScreenRoute.MANUAL_INPUT })
+            CategoryManagementScreen(
+                onClose = { currentScreen = ScreenRoute.MANUAL_INPUT },
+                onShowDeleted = { currentScreen = ScreenRoute.DELETED_CATEGORIES }
+            )
+            return
+        }
+        ScreenRoute.DELETED_CATEGORIES -> {
+            DeletedCategoriesScreen(onClose = { currentScreen = ScreenRoute.CATEGORY_MANAGEMENT })
             return
         }
         ScreenRoute.BUDGET_MANAGEMENT -> {
-            BudgetManagementScreen(onClose = { currentScreen = ScreenRoute.HOME })
+            // Tanpa onShowDeleted, tombol "Lihat yang dihapus" memakai default
+            // no-op sehingga ScreenRoute.DELETED_BUDGETS tidak pernah tercapai.
+            BudgetManagementScreen(
+                onClose = { currentScreen = ScreenRoute.HOME },
+                onShowDeleted = { currentScreen = ScreenRoute.DELETED_BUDGETS }
+            )
             return
         }
         ScreenRoute.DELETED_BUDGETS -> {

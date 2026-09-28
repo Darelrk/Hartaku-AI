@@ -260,4 +260,31 @@ class CategoryManagementScreenTest {
             assertTrue(categoryRepo.getAllDeleted().none { it.id == "Makan" })
         }
     }
+
+    /**
+     * Tombol "Lihat yang dihapus" harus benar-benar membuka arsip. Sebelumnya
+     * konfirmasi penghapusan menjanjikan "Lihat di 'Lihat yang dihapus'", tapi
+     * tombol itu tidak ada dan `DeletedCategoriesScreen` tidak punya
+     * `ScreenRoute` sama sekali — jadi kategori terarsip tidak bisa dipulihkan.
+     */
+    @Test
+    fun testDeletedArchiveIsReachableFromMainList() {
+        var opened = false
+        composeTestRule.setContent {
+            MyApplicationTheme {
+                CategoryManagementScreen(
+                    onClose = {},
+                    onShowDeleted = { opened = true },
+                    categoryRepositoryOverride = categoryRepo
+                )
+            }
+        }
+        composeTestRule.waitForIdle()
+
+        composeTestRule.onNodeWithText("Lihat yang dihapus").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Lihat yang dihapus").performClick()
+        composeTestRule.waitForIdle()
+
+        assertTrue("tombol arsip harus memanggil onShowDeleted", opened)
+    }
 }
