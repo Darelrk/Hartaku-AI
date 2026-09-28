@@ -46,6 +46,10 @@ fun DailyInsightSlide(
     onSendMessage: (String) -> Unit = {},
 ) {
     val density = LocalDensity.current
+    // Keyboard harus benar-benar MENGGESER baris input ke atas, bukan sekadar
+    // memperkecil padding bawah. Sebelumnya `imeBottom` hanya memilih nilai
+    // padding, sehingga baris input tetap di posisi naturalnya — di belakang
+    // keyboard — dan tombol Send tidak pernah bisa ditekan pengguna.
     val imeBottom = WindowInsets.ime.getBottom(density)
     val bottomPad = if (imeBottom == 0) 48.dp else 8.dp
 
@@ -54,6 +58,7 @@ fun DailyInsightSlide(
             .fillMaxSize()
             .padding(horizontal = 20.dp)
             .padding(top = 8.dp, bottom = bottomPad)
+            .imePadding()
     ) {
         Column(
             modifier = Modifier.fillMaxSize()
