@@ -15,7 +15,10 @@ interface BudgetDao {
     @Query("SELECT * FROM budgets WHERE deletedAt IS NOT NULL ORDER BY deletedAt DESC")
     fun getAllDeleted(): Flow<List<Budget>>
 
-    @Query("SELECT * FROM budgets WHERE id = :id")
+    // Harus memfilter `deletedAt IS NULL`, sama seperti getAllBudgets. Tanpa
+    // ini caller yang mengandalkan getById bisa membaca dan mengedit budget
+    // yang sudah diarsipkan.
+    @Query("SELECT * FROM budgets WHERE id = :id AND deletedAt IS NULL")
     suspend fun getById(id: Int): Budget?
 
     @Insert

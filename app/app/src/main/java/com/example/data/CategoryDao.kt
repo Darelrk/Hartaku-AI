@@ -49,4 +49,8 @@ interface CategoryDao {
 
     @Query("SELECT COUNT(*) FROM categories WHERE deletedAt IS NULL")
     suspend fun count(): Int
+
+    /** Termasuk yang sudah di-soft-delete — dipakai CategorySeeder agar arsip tidak memicu seed ulang. */
+    @Query("SELECT COUNT(*) FROM categories")
+    suspend fun countIncludingDeleted(): Int
 }

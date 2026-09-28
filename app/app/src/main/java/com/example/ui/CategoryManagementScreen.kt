@@ -205,6 +205,31 @@ fun CategoryManagementScreen(
                     }
                 }
 
+                // Tanpa ini, mengarsipkan seluruh kategori (atau filter yang
+                // tidak cocok) membuat LazyColumn kosong total — layar blank tanpa
+                // penjelasan.
+                if (expenseCats.isEmpty() && incomeCats.isEmpty() && neutralCats.isEmpty()) {
+                    item {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 48.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = if (searchQuery.isBlank()) {
+                                    "Belum ada kategori.\nTambah lewat tombol + di bawah."
+                                } else {
+                                    "Tidak ada kategori yang cocok dengan \"$searchQuery\"."
+                                },
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = GhostWhite.copy(alpha = 0.5f),
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    }
+                }
+
                 item { Spacer(modifier = Modifier.height(80.dp)) }
             }
         }

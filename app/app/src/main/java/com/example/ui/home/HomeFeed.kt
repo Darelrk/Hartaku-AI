@@ -9,6 +9,7 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -119,7 +120,13 @@ private fun DaySlides(
                 }
                 .alpha(fade)
         ) {
-            when (slide) {
+            if (state.loading) {
+                // DayUiState default-nya nol, jadi tanpa gerbang ini semua slide
+                // sempat menampilkan "Rp 0" sebelum data Room sampai, lalu meloncat
+                // ke angka sebenarnya. `loading` sudah diisi ViewModel tapi
+                // sebelumnya tidak pernah dibaca.
+                LoadingSlide(modifier = Modifier.align(Alignment.Center))
+            } else when (slide) {
                 0 -> SummarySlide(
                     totalSpending = state.totalSpending,
                     totalIncome = state.totalIncome,
@@ -155,6 +162,17 @@ private fun DaySlides(
                     .padding(end = 6.dp)
             )
         }
+    }
+}
+
+/** Placeholder selama data hari ini belum masuk — mencegah "Rp 0" lalu meloncat. */
+@Composable
+private fun LoadingSlide(modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
+        CircularProgressIndicator(color = GhostWhite, strokeWidth = 2.dp)
     }
 }
 

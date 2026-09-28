@@ -176,7 +176,9 @@ class FakeBudgetRepository : BudgetRepository(StubBudgetDao()) {
     }
     override suspend fun count(): Int = budgets.value.count { it.deletedAt == null }
 
-    override suspend fun getById(id: Int): Budget? = budgets.value.firstOrNull { it.id == id }
+    // getById harus menyembunyikan budget terarsip, sama seperti query SQL-nya.
+    override suspend fun getById(id: Int): Budget? =
+        budgets.value.firstOrNull { it.id == id && it.deletedAt == null }
 
 
     override suspend fun insertAll(budgetsList: List<Budget>) {
@@ -271,6 +273,8 @@ class FakeCategoryRepository : CategoryRepository(StubCategoryDao()) {
     override suspend fun count(): Int {
         return categories.count { it.deletedAt == null }
     }
+
+    override suspend fun countIncludingDeleted(): Int = categories.size
 
 
     override suspend fun getAllDeleted(): List<Category> {
@@ -400,6 +404,7 @@ class StubCategoryDao : CategoryDao {
     override suspend fun softDelete(id: String, timestamp: Long) = Unit
     override suspend fun rename(id: String, name: String, slug: String, timestamp: Long) = Unit
     override suspend fun count(): Int = 0
+    override suspend fun countIncludingDeleted(): Int = 0
     override suspend fun getAllDeleted(): List<Category> = emptyList()
     override suspend fun restore(id: String, timestamp: Long) = Unit
 }

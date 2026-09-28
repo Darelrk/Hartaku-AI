@@ -228,8 +228,18 @@ object CategorySeeder {
 
     )
 
+    /**
+     * Seed hanya kalau TIDAK ADA kategori sama sekali — termasuk yang sudah
+     * di-soft-delete.
+     *
+     * Sebelumnya hanya menghitung kategori aktif, sehingga bila pengguna
+     * mengarsipkan semua kategorinya, start berikutnya akan berjalan lagi dan
+     * `insertAll` memakai `OnConflictStrategy.REPLACE` — kategori default yang
+     * sebelumnya sudah dikustomisasi tertimpa, sementara kategori kustom miliknya
+     * tetap terkubur dan sulit dipulihkan.
+     */
     suspend fun seedIfEmpty(repository: CategoryRepository) {
-        if (repository.count() == 0) {
+        if (repository.countIncludingDeleted() == 0) {
             repository.insertAll(DEFAULT_CATEGORIES)
         }
     }

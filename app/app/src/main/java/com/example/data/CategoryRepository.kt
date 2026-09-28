@@ -34,6 +34,7 @@ open class CategoryRepository(
     open suspend fun softDelete(id: String) = dao.softDelete(id)
     open suspend fun rename(id: String, name: String, slug: String) = dao.rename(id, name, slug)
     open suspend fun count(): Int = dao.count()
+    open suspend fun countIncludingDeleted(): Int = dao.countIncludingDeleted()
     open suspend fun getAllDeleted(): List<Category> = dao.getAllDeleted()
     open suspend fun restore(id: String) = dao.restore(id)
 
