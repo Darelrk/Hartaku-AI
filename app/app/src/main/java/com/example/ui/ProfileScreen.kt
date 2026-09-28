@@ -1,5 +1,8 @@
 package com.example.ui
 
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -13,6 +16,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -20,6 +24,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -30,12 +35,16 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.BuildConfig
 import com.example.data.Budget
 import com.example.data.TaskType
+import com.example.data.UpdateChecker
+import com.example.data.UpdateInfo
 import com.example.ui.components.GlassPanel
 import com.example.ui.theme.*
 import com.example.work.AgentPrefs
 import com.example.RupiahFormatter
+import kotlinx.coroutines.launch
 
 @Composable
 fun ProfileScreen(
@@ -51,6 +60,27 @@ fun ProfileScreen(
     // [BudgetEditDialog] as a full-screen overlay (skips BudgetManagementScreen).
     // The dialog calls `viewModel.createBudget()` and then closes via [showCreateForm].
     var showCreateForm by remember { mutableStateOf(false) }
+
+    // Manual update check: state lokal, bukan ViewModel — aksi ini one-shot dan
+    // [showCreateForm] di atas sudah memakai pola yang sama.
+    val scope = rememberCoroutineScope()
+    var updateState by remember { mutableStateOf<UpdateUiState>(UpdateUiState.Idle) }
+
+    fun startCheck() {
+        scope.launch {
+            updateState = UpdateUiState.Checking
+            UpdateChecker.check()
+                .onSuccess { info ->
+                    updateState = UpdateUiState.Done(
+                        info = info,
+                        isNewer = UpdateChecker.isNewer(info.version, BuildConfig.VERSION_NAME)
+                    )
+                }
+                .onFailure { e ->
+                    updateState = UpdateUiState.Failed(e.message ?: "Gagal mengecek update.")
+                }
+        }
+    }
 
     Box(
         modifier = Modifier
@@ -204,28 +234,62 @@ fun ProfileScreen(
         GlassPanel(
             modifier = Modifier.fillMaxWidth()
         ) {
-            Row(
-                modifier = Modifier
-                    .padding(20.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Info,
-                    contentDescription = "Info",
-                    tint = GhostWhite.copy(alpha = 0.5f),
-                    modifier = Modifier.size(20.dp)
-                )
-                Spacer(modifier = Modifier.width(12.dp))
-                Column {
+            Column(modifier = Modifier.padding(20.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.Info,
+                        contentDescription = "Info",
+                        tint = GhostWhite.copy(alpha = 0.5f),
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column {
+                        Text(
+                            text = "HartaKu AI",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = GhostWhite
+                        )
+                        Text(
+                            // Dibaca dari BuildConfig, bukan literal — nilai yang sama
+                            // dengan yang dibandingkan UpdateChecker.isNewer.
+                            text = "Versi ${BuildConfig.VERSION_NAME}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = GhostWhite.copy(alpha = 0.4f)
+                        )
+                    }
+                }
+
+                val checking = updateState is UpdateUiState.Checking
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 16.dp)
+                        .clickable(enabled = !checking) { startCheck() },
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.SystemUpdate,
+                        contentDescription = null,
+                        tint = GhostWhite.copy(alpha = 0.5f),
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
                     Text(
-                        text = "HartaKu AI",
-                        style = MaterialTheme.typography.bodyLarge,
+                        text = "Cek Update",
+                        style = MaterialTheme.typography.bodyMedium,
                         color = GhostWhite
                     )
+                    Spacer(modifier = Modifier.weight(1f))
                     Text(
-                        text = "Versi 1.0.0",
+                        text = if (checking) "Memeriksa..." else BuildConfig.VERSION_NAME,
                         style = MaterialTheme.typography.labelSmall,
                         color = GhostWhite.copy(alpha = 0.4f)
+                    )
+                    Icon(
+                        imageVector = Icons.Default.ChevronRight,
+                        contentDescription = null,
+                        tint = GhostWhite.copy(alpha = 0.5f),
+                        modifier = Modifier.size(20.dp)
                     )
                 }
             }
@@ -247,7 +311,69 @@ fun ProfileScreen(
                 onClose = { showCreateForm = false }
             )
         }
+
+        // Hasil "Cek Update": dialog muncul hanya setelah request selesai
+        // (Done) atau gagal (Failed). Menutupnya selalu mengembalikan state ke Idle.
+        val dialogState = updateState
+        if (dialogState is UpdateUiState.Done || dialogState is UpdateUiState.Failed) {
+            val title = when (dialogState) {
+                is UpdateUiState.Failed -> "Gagal Cek Update"
+                is UpdateUiState.Done -> if (dialogState.isNewer) "Update Tersedia" else "Aplikasi Terbaru"
+                else -> ""
+            }
+            val message = when (dialogState) {
+                is UpdateUiState.Failed ->
+                    "${dialogState.message}\n\nBuka halaman rilis untuk cek manual."
+                is UpdateUiState.Done -> if (dialogState.isNewer) {
+                    "Versi ${dialogState.info.version} sudah tersedia. Unduh dari halaman rilis."
+                } else {
+                    "Kamu sudah memakai versi terbaru (${BuildConfig.VERSION_NAME})."
+                }
+                else -> ""
+            }
+            val targetUrl = when (dialogState) {
+                is UpdateUiState.Done -> dialogState.info.releaseUrl
+                else -> UpdateChecker.RELEASES_PAGE
+            }
+            AlertDialog(
+                onDismissRequest = { updateState = UpdateUiState.Idle },
+                containerColor = DarkSurface,
+                title = {
+                    Text(title, color = GhostWhite, fontWeight = FontWeight.Bold)
+                },
+                text = {
+                    Text(message, color = GhostWhite.copy(alpha = 0.7f))
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        openUpdateUrl(context, targetUrl)
+                        updateState = UpdateUiState.Idle
+                    }) { Text("Buka Halaman Rilis", color = LimeSqueeze) }
+                },
+                dismissButton = {
+                    TextButton(onClick = { updateState = UpdateUiState.Idle }) {
+                        Text("Tutup", color = GhostWhite)
+                    }
+                }
+            )
+        }
     }
+}
+
+/** Status satu-cek-update: [Checking] selama request berjalan, lalu dialog hasil. */
+private sealed interface UpdateUiState {
+    data object Idle : UpdateUiState
+    data object Checking : UpdateUiState
+    data class Done(val info: UpdateInfo, val isNewer: Boolean) : UpdateUiState
+    data class Failed(val message: String) : UpdateUiState
+}
+
+/**
+ * Buka halaman rilis di browser. `runCatching` menutup kemungkinan perangkat
+ * tanpa browser handler — gagal di sini tidak layak jadi dialog kedua.
+ */
+private fun openUpdateUrl(context: Context, url: String) {
+    runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
 }
 
 /**
