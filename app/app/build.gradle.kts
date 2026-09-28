@@ -103,7 +103,15 @@ android {
     buildConfig = true
   }
   testOptions {
-    unitTests { isIncludeAndroidResources = true }
+    unitTests {
+      isIncludeAndroidResources = true
+      all { test ->
+        // Runner online memanggil NIM sungguhan — opt-in lewat -PevalOnline.
+        if (!project.hasProperty("evalOnline")) {
+          test.filter.excludeTestsMatching("com.example.eval.OnlineEvalTest")
+        }
+      }
+    }
   }
 }
 

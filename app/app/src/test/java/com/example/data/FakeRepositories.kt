@@ -78,6 +78,16 @@ class FakeTransactionRepository : TransactionRepository(StubTransactionDao()) {
         }
     }
 
+    override fun getIncomeBreakdownById(startOfDay: Long, endOfDay: Long): Flow<List<CategoryTotal>> {
+        return getTransactionsByDay(startOfDay, endOfDay).map { list ->
+            list.filter { it.type == TransactionType.INCOME }
+                .groupBy { it.category }
+                .map { (catName, trans) ->
+                    CategoryTotal(name = catName, total = trans.sumOf { it.amount }, categoryId = catName)
+                }
+        }
+    }
+
 
     override suspend fun softDelete(id: Int, now: Long) {
         val current = transactions.value.toMutableList()
@@ -125,6 +135,15 @@ class FakeTransactionRepository : TransactionRepository(StubTransactionDao()) {
 
     override fun getTransactionCount(startOfDay: Long, endOfDay: Long): Flow<Int> {
         return getTransactionsByDay(startOfDay, endOfDay).map { it.size }
+    }
+
+    override suspend fun dataFingerprint(): String {
+        val active = transactions.value.filter { it.deletedAt == null }
+        return DataFingerprint(
+            txnCount = active.size,
+            totalAmount = active.sumOf { it.amount },
+            latestTimestamp = active.maxOfOrNull { it.timestamp } ?: 0L
+        ).asKey()
     }
 }
 
@@ -350,6 +369,7 @@ class StubTransactionDao : TransactionDao {
     override fun getCategoryBreakdownById(startOfDay: Long, endOfDay: Long): Flow<List<CategoryTotal>> = MutableStateFlow(emptyList())
     override fun getIncomeBreakdownById(startOfDay: Long, endOfDay: Long): Flow<List<CategoryTotal>> = MutableStateFlow(emptyList())
     override fun getTransactionCount(startOfDay: Long, endOfDay: Long): Flow<Int> = MutableStateFlow(0)
+    override suspend fun activeDataFingerprint(): DataFingerprint = DataFingerprint(0, 0.0, 0L)
 }
 class StubBudgetDao : BudgetDao {
     override fun getAllBudgets(): Flow<List<Budget>> = MutableStateFlow(emptyList())

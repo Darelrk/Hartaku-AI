@@ -36,7 +36,13 @@ class ToolCallExecutor(
 
     /** Cap jumlah transaksi yang dikembalikan ke LLM (context window protection). */
     private val maxRows = 50
+
+    /** Stage `tool:<nama>` durasi eksekusi terakhir, dibaca orchestrator untuk AiTrace. */
+    internal val lastToolStages = mutableListOf<AiTraceStage>()
+
+    fun resetTrace() = lastToolStages.clear()
     suspend fun execute(toolCall: ToolCall): ToolResult {
+        val startedAt = System.currentTimeMillis()
         return try {
             val args = parseArgs(toolCall.argumentsJson)
             val content = when (toolCall.name) {
@@ -68,6 +74,8 @@ class ToolCallExecutor(
                     put("message", e.message ?: e.javaClass.simpleName)
                 }.toString()
             )
+        } finally {
+            lastToolStages.add(AiTraceStage("tool:${toolCall.name}", System.currentTimeMillis() - startedAt))
         }
     }
 

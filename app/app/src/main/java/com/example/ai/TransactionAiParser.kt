@@ -45,15 +45,6 @@ class TransactionAiParser(
         val source: String          // "ai" | "regex" | "error"
     )
 
-    /**
-     * Helper to compute SHA-256 hash of a string.
-     */
-    private fun sha256(input: String): String {
-        return java.security.MessageDigest.getInstance("SHA-256")
-            .digest(input.toByteArray())
-            .joinToString("") { "%02x".format(it) }
-    }
-
     fun preprocessNominals(text: String): String {
         var result = text
         val numberPattern = """(\d+(?:[.,]\d+)?)"""
@@ -122,7 +113,7 @@ class TransactionAiParser(
 
         // We run LLM per clause
         for (clause in clauses) {
-            val hash = sha256(clause)
+            val hash = AiCacheKey.forParserClause(clause)
             
             // Check cache first
             var cachedJson: String? = null

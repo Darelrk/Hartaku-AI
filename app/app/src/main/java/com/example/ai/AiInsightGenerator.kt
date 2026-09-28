@@ -4,14 +4,24 @@ import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import com.example.RupiahFormatter
+import com.example.data.AiCache
+import com.example.data.AiCacheDao
 
 /**
  * AI-powered financial insight generator.
  * Panggil NIM LLM dengan data transaksi → insight natural language (Bahasa Indonesia).
  */
-class AiInsightGenerator(private val nimClient: ChatClient) {
+class AiInsightGenerator(
+    private val nimClient: ChatClient,
+    private val aiCacheDao: AiCacheDao? = null,
+    private val dataFingerprint: (suspend () -> String)? = null
+) {
 
     private val TAG = "AiInsightGenerator"
+
+    private companion object {
+        const val INSIGHT_TTL_MILLIS = 10L * 60 * 1000
+    }
 
     data class InsightData(
         val totalExpense: Double,
@@ -50,6 +60,35 @@ Contoh:
                 appendLine("- Kategori terbesar: ${data.topCategory ?: "N/A"} (${RupiahFormatter.format(data.topCategoryAmount)})")
             }
 
+            // Cache read: hanya bila DAO dan fingerprint tersedia. Kegagalan
+            // cache apa pun jatuh ke jalur LLM di bawah — generate tidak boleh
+            // berubah dari "selalu sukses dengan fallback" menjadi gagal.
+            val cacheKey = if (aiCacheDao != null && dataFingerprint != null) {
+                AiCacheKey.forInsight(
+                    runCatching { dataFingerprint() }.getOrDefault(""),
+                    data
+                )
+            } else {
+                null
+            }
+            if (cacheKey != null) {
+                val cached = runCatching {
+                    aiCacheDao?.getCache(cacheKey)
+                        ?.takeIf { System.currentTimeMillis() - it.createdAt <= INSIGHT_TTL_MILLIS }
+                }.getOrNull()
+                if (cached != null) {
+                    val cachedJson = extractJson(cached.responseJson)
+                    if (cachedJson != null) {
+                        return@withContext Result.success(
+                            InsightResult(
+                                insight = cachedJson.optString("insight", "Tidak ada insight."),
+                                saran = cachedJson.optString("saran", "Terus pantau pengeluaranmu.")
+                            )
+                        )
+                    }
+                }
+            }
+
             val response = nimClient.chat(
                 systemPrompt = systemPrompt,
                 userMessage = userMessage,
@@ -65,10 +104,24 @@ Contoh:
             val content = response.getOrThrow().content.trim()
             val json = extractJson(content) ?: return@withContext Result.success(fallbackInsight(data))
 
-            Result.success(InsightResult(
+            val result = InsightResult(
                 insight = json.optString("insight", "Tidak ada insight."),
                 saran = json.optString("saran", "Terus pantau pengeluaranmu.")
-            ))
+            )
+
+            if (cacheKey != null) {
+                runCatching {
+                    aiCacheDao?.insertCache(
+                        AiCache(
+                            queryHash = cacheKey,
+                            rawInput = "insight",
+                            responseJson = content
+                        )
+                    )
+                }
+            }
+
+            Result.success(result)
 
         } catch (e: Exception) {
             Log.w(TAG, "Insight generation failed: ${e.message}")

@@ -16,6 +16,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -49,6 +50,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun ProfileScreen(
     onManageBudgets: () -> Unit = {},
+    onOpenDiagnostics: () -> Unit = {},
     viewModelOverride: ProfileViewModel? = null
 ) {
     val context = LocalContext.current
@@ -285,6 +287,34 @@ fun ProfileScreen(
                         style = MaterialTheme.typography.labelSmall,
                         color = GhostWhite.copy(alpha = 0.4f)
                     )
+                    Icon(
+                        imageVector = Icons.Default.ChevronRight,
+                        contentDescription = null,
+                        tint = GhostWhite.copy(alpha = 0.5f),
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 16.dp)
+                        .clickable { onOpenDiagnostics() },
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.BugReport,
+                        contentDescription = null,
+                        tint = GhostWhite.copy(alpha = 0.5f),
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text(
+                        text = "Diagnostics AI",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = GhostWhite
+                    )
+                    Spacer(modifier = Modifier.weight(1f))
                     Icon(
                         imageVector = Icons.Default.ChevronRight,
                         contentDescription = null,

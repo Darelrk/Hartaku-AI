@@ -76,6 +76,11 @@ interface TransactionDao {
 
     @Query("SELECT COALESCE(COUNT(*), 0) FROM transactions WHERE deletedAt IS NULL AND timestamp >= :startOfDay AND timestamp < :endOfDay")
     fun getTransactionCount(startOfDay: Long, endOfDay: Long): Flow<Int>
+
+    // Sidik jari isi tabel untuk invalidasi cache AI. Nama alias harus sama
+    // persis dengan property DataFingerprint agar Room memetakan otomatis.
+    @Query("SELECT COUNT(*) AS txnCount, COALESCE(SUM(amount), 0) AS totalAmount, COALESCE(MAX(timestamp), 0) AS latestTimestamp FROM transactions WHERE deletedAt IS NULL")
+    suspend fun activeDataFingerprint(): DataFingerprint
 }
 
 data class CategoryTotal(

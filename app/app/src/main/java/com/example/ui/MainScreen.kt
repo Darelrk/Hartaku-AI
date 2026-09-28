@@ -20,7 +20,8 @@ enum class ScreenRoute {
     MANUAL_INPUT,
     CATEGORY_MANAGEMENT,
     BUDGET_MANAGEMENT,
-    DELETED_BUDGETS
+    DELETED_BUDGETS,
+    AI_DIAGNOSTICS
 }
 
 @Composable
@@ -89,6 +90,10 @@ fun MainScreen() {
             DeletedBudgetsScreen(onClose = { currentScreen = ScreenRoute.HOME })
             return
         }
+        ScreenRoute.AI_DIAGNOSTICS -> {
+            AiDiagnosticsScreen(onClose = { currentScreen = ScreenRoute.HOME })
+            return
+        }
         ScreenRoute.HOME -> { /* rendered below */ }
     }
 
@@ -116,7 +121,10 @@ fun MainScreen() {
                     if (tab == 0) {
                         HomeFeed()
                     } else {
-                        ProfileScreen(onManageBudgets = { currentScreen = ScreenRoute.BUDGET_MANAGEMENT })
+                        ProfileScreen(
+                            onManageBudgets = { currentScreen = ScreenRoute.BUDGET_MANAGEMENT },
+                            onOpenDiagnostics = { currentScreen = ScreenRoute.AI_DIAGNOSTICS }
+                        )
                     }
                 }
             }

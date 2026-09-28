@@ -45,3 +45,8 @@ strftime('%s'
 
 # Launcher icon layers are source, not screenshots — keep them out of the `*.png` sweep.
 !/app/app/src/main/res/mipmap-*/ic_launcher_*.png
+
+# Laporan runner eval online (dihasilkan, bukan sumber)
+# Tanpa garis miring depan: OnlineEvalTest menulis File("eval-reports/…") yang
+# resolve ke direktori proyek Gradle, yaitu app/app/eval-reports/.
+eval-reports/

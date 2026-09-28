@@ -24,6 +24,23 @@ class MultiTurnOrchestrator(
     var lastToolResultJson: String? = null
         private set
 
+    /** Trace AiTrace terakhir — dibaca ChatbotRAGManager setelah query selesai. */
+    internal var lastLlmStages: List<AiTraceStage> = emptyList()
+        private set
+    internal var lastPromptTokens: Int? = null
+        private set
+    internal var lastCompletionTokens: Int? = null
+        private set
+    internal val lastToolStages: List<AiTraceStage>
+        get() = toolExecutor.lastToolStages
+
+    private fun resetTrace() {
+        lastLlmStages = emptyList()
+        lastPromptTokens = null
+        lastCompletionTokens = null
+        toolExecutor.resetTrace()
+    }
+
     suspend fun processQuery(
         userQuery: String,
         systemPrompt: String = "",
@@ -32,18 +49,26 @@ class MultiTurnOrchestrator(
         // Clear stale tool result from previous query — jangan sampai validator
         // memakai ground truth milik query sebelumnya.
         lastToolResultJson = null
+        resetTrace()
         // Build initial message list from history + user query
         val messages = toChatMessages(history, userQuery)
 
         repeat(maxTurns) { turn ->
             ChatLogger.d("HartaKu/MTOrch", "Turn ${turn + 1}/$maxTurns messages=${messages.size}")
 
+            val llmStartedAt = System.currentTimeMillis()
             val response = chatClient.chatWithTools(
                 systemPrompt = systemPrompt,
                 history = messages
             ).getOrElse { err ->
+                lastLlmStages = lastLlmStages + AiTraceStage("llm", System.currentTimeMillis() - llmStartedAt)
                 ChatLogger.e("HartaKu/MTOrch", "chatWithTools failed turn ${turn + 1}", err)
                 return "Maaf, saya sedang bermasalah. Coba lagi ya."
+            }
+            lastLlmStages = lastLlmStages + AiTraceStage("llm", System.currentTimeMillis() - llmStartedAt)
+            if (lastPromptTokens == null) {
+                lastPromptTokens = response.promptTokens
+                lastCompletionTokens = response.completionTokens
             }
 
             when (response.finishReason) {
@@ -90,11 +115,13 @@ class MultiTurnOrchestrator(
         history: List<ChatMessageItem> = emptyList()
     ): Flow<String> = channelFlow {
         lastToolResultJson = null
+        resetTrace()
         val messages = toChatMessages(history, userQuery)
         var done = false
 
         repeat(maxTurns) { turn ->
             if (done) return@repeat
+            val streamStartedAt = System.currentTimeMillis()
             chatClient.chatStreamWithTools(
                 systemPrompt = systemPrompt,
                 history = messages
@@ -142,6 +169,7 @@ class MultiTurnOrchestrator(
                     }
                 }
             }
+            lastLlmStages = lastLlmStages + AiTraceStage("llm", System.currentTimeMillis() - streamStartedAt)
         }
 
         if (!isClosedForSend) {

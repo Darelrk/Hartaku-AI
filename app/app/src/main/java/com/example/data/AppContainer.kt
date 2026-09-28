@@ -50,6 +50,10 @@ class AppContainer(context: Context) {
     // Build the repository first (no hooks yet); the sync hooks are wired in init.
     val transactionRepository: TransactionRepository = TransactionRepository(transactionDao)
 
+    // Satu provider untuk kedua layanan AI — fingerprint data jadi bagian kunci
+    // cache supaya jawaban basi tidak pernah dilayani.
+    private val aiFingerprint: suspend () -> String = { transactionRepository.dataFingerprint() }
+
     val budgetRepository = BudgetRepository(budgetDao)
     val categoryRepository = CategoryRepository(categoryDao)
     val billRepository = BillRepository(billDao)
@@ -96,14 +100,16 @@ class AppContainer(context: Context) {
     val receiptParser: ReceiptParser? = nimApiKey?.let { ReceiptParser(it) }
 
     // AI Services — Insight Generation
-    val insightGenerator: AiInsightGenerator? = nimApiClient?.let { AiInsightGenerator(it) }
+    val insightGenerator: AiInsightGenerator? = nimApiClient?.let {
+        AiInsightGenerator(it, database.aiCacheDao(), aiFingerprint)
+    }
     val conversationRepository = ConversationRepository(conversationDao)
     val feedbackCollector = FeedbackCollector(agentFeedbackDao)
     val agentProfileProvider = AgentProfileProvider(agentFeedbackDao)
     val agentProactiveEngine = AgentProactiveEngine(transactionRepository, budgetRepository, billRepository)
 
     val chatbotRAGManager: ChatbotRAGManager? = nimApiClient?.let {
-        ChatbotRAGManager(it, transactionRepository, nimEmbeddingClient, conversationRepository, agentProfileProvider)
+        ChatbotRAGManager(it, transactionRepository, nimEmbeddingClient, conversationRepository, agentProfileProvider, database.aiCacheDao(), aiFingerprint)
     }
     val localRuleBasedChat: LocalRuleBasedChat =
         LocalRuleBasedChat(transactionRepository)

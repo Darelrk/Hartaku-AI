@@ -1,5 +1,7 @@
 package com.example.ai
 
+import com.example.data.AiCache
+import com.example.data.AiCacheDao
 import com.example.data.ConversationMessage
 import com.example.data.ConversationRepository
 import com.example.data.ConversationSession
@@ -21,8 +23,25 @@ class ChatbotRAGManager(
     private val transactionRepository: TransactionRepository,
     private val embeddingClient: NimEmbeddingClient? = null,
     private val conversationRepository: ConversationRepository? = null,
-    private val agentProfileProvider: AgentProfileProvider? = null
+    private val agentProfileProvider: AgentProfileProvider? = null,
+    private val aiCacheDao: AiCacheDao? = null,
+    private val dataFingerprint: (suspend () -> String)? = null
 ) {
+
+    private companion object {
+        const val CHAT_TTL_MILLIS = 10L * 60 * 1000
+
+        /**
+         * Jendela prune untuk `deleteExpired`. WAJIB TTL terlama yang dipakai
+         * tabel `ai_cache`, bukan TTL chat: DELETE-nya table-wide, jadi memakai
+         * 10 menit akan menghapus entri TransactionAiParser (TTL 30 hari) —
+         * justru cache paling berharga.
+         */
+        const val PRUNE_TTL_MILLIS = 30L * 24 * 60 * 60 * 1000
+    }
+
+    /** Durasi embed+HNSW terakhir, dipakai untuk stage `embed` di AiTrace. */
+    private var lastEmbedMs: Long? = null
     private val toolExecutor = ToolCallExecutor(transactionRepository, embeddingClient)
     private val orchestrator = MultiTurnOrchestrator(chatClient, toolExecutor)
 
@@ -49,6 +68,26 @@ class ChatbotRAGManager(
         userQuery: String,
         history: List<ChatMessageItem> = emptyList()
     ): String {
+        val startedAt = System.currentTimeMillis()
+
+        // Cache read. Fingerprint data ikut di dalam kunci, jadi jawaban basi
+        // tidak mungkin dilayani setelah ada transaksi masuk/ubah/hapus.
+        val cacheKey = chatCacheKey(userQuery)
+        val cachedAnswer = readChatCache(cacheKey)
+        if (cachedAnswer != null) {
+            AiTraceLog.record(
+                AiTrace(
+                    query = userQuery,
+                    stages = emptyList(),
+                    promptTokens = null,
+                    completionTokens = null,
+                    validation = "CACHE",
+                    totalMs = System.currentTimeMillis() - startedAt
+                )
+            )
+            return cachedAnswer
+        }
+
         // Rebuild agent profile every 5 queries for prompt adaptation
         queryCount++
         if (queryCount % 5 == 0 || cachedProfile == null) {
@@ -68,6 +107,30 @@ class ChatbotRAGManager(
             contextString = "",
             toolResultJson = orchestrator.lastToolResultJson
         )
+
+        val stages = buildList {
+            lastEmbedMs?.let { add(AiTraceStage("embed", it)) }
+            addAll(orchestrator.lastToolStages)
+            addAll(orchestrator.lastLlmStages)
+        }
+        AiTraceLog.record(
+            AiTrace(
+                query = userQuery,
+                stages = stages,
+                promptTokens = orchestrator.lastPromptTokens,
+                completionTokens = orchestrator.lastCompletionTokens,
+                validation = when {
+                    answer.startsWith("Maaf, saya sedang bermasalah") ||
+                        answer.startsWith("Saya sudah mencoba beberapa kali") -> "FALLBACK"
+                    validated == answer -> "OK"
+                    else -> "REGENERATED"
+                },
+                totalMs = System.currentTimeMillis() - startedAt
+            )
+        )
+
+        writeChatCache(cacheKey, userQuery, validated)
+
         persistToDb(userQuery, validated)
         return validated
     }
@@ -80,6 +143,27 @@ class ChatbotRAGManager(
         userQuery: String,
         history: List<ChatMessageItem> = emptyList()
     ): Flow<String> = flow {
+        val startedAt = System.currentTimeMillis()
+
+        // Jalur streaming adalah jalur produksi (HomeViewModel memanggil ini),
+        // jadi cache WAJIB ada di sini — bukan hanya di processQuery.
+        val cacheKey = chatCacheKey(userQuery)
+        val cachedAnswer = readChatCache(cacheKey)
+        if (cachedAnswer != null) {
+            AiTraceLog.record(
+                AiTrace(
+                    query = userQuery,
+                    stages = emptyList(),
+                    promptTokens = null,
+                    completionTokens = null,
+                    validation = "CACHE",
+                    totalMs = System.currentTimeMillis() - startedAt
+                )
+            )
+            emit(cachedAnswer)
+            return@flow
+        }
+
         // Rebuild agent profile every 5 queries for prompt adaptation
         queryCount++
         if (queryCount % 5 == 0 || cachedProfile == null) {
@@ -92,8 +176,64 @@ class ChatbotRAGManager(
         val retrievedContext = retrieveRelevantTransactions(userQuery)
         val systemPrompt = buildRoutingSystemPrompt(retrievedContext)
         val effectiveHistory = if (history.isEmpty()) loadHistoryFromDb() else history
+
+        val streamed = StringBuilder()
         orchestrator.processQueryStream(userQuery, systemPrompt, effectiveHistory).collect { delta ->
+            streamed.append(delta)
             emit(delta)
+        }
+
+        // Validasi numerik untuk jalur ini dijalankan di sisi UI setelah stream
+        // selesai, jadi trace hanya mencatat bahwa stream selesai.
+        AiTraceLog.record(
+            AiTrace(
+                query = userQuery,
+                stages = buildList {
+                    lastEmbedMs?.let { add(AiTraceStage("embed", it)) }
+                    addAll(orchestrator.lastToolStages)
+                    addAll(orchestrator.lastLlmStages)
+                },
+                promptTokens = orchestrator.lastPromptTokens,
+                completionTokens = orchestrator.lastCompletionTokens,
+                validation = "STREAM",
+                totalMs = System.currentTimeMillis() - startedAt
+            )
+        )
+
+        if (streamed.isNotBlank()) {
+            writeChatCache(cacheKey, userQuery, streamed.toString())
+        }
+    }
+
+    /** Kunci cache chat, atau null bila cache tidak dikonfigurasi. */
+    private suspend fun chatCacheKey(userQuery: String): String? {
+        if (aiCacheDao == null || dataFingerprint == null) return null
+        return AiCacheKey.forChat(
+            runCatching { dataFingerprint() }.getOrDefault(""),
+            userQuery
+        )
+    }
+
+    /**
+     * Baca cache chat. Setiap miss sekalian membuang entri kedaluwarsa supaya
+     * tabel tidak menumpuk ketika fingerprint data berubah.
+     */
+    private suspend fun readChatCache(key: String?): String? {
+        if (key == null) return null
+        val cached = runCatching {
+            aiCacheDao?.getCache(key)
+                ?.takeIf { System.currentTimeMillis() - it.createdAt <= CHAT_TTL_MILLIS }
+        }.getOrNull() ?: run {
+            runCatching { aiCacheDao?.deleteExpired(System.currentTimeMillis(), PRUNE_TTL_MILLIS) }
+            return null
+        }
+        return cached.responseJson
+    }
+
+    private suspend fun writeChatCache(key: String?, userQuery: String, answer: String) {
+        if (key == null) return
+        runCatching {
+            aiCacheDao?.insertCache(AiCache(queryHash = key, rawInput = userQuery, responseJson = answer))
         }
     }
 
@@ -141,11 +281,19 @@ class ChatbotRAGManager(
      * No greeting skip-list — embedding is cheap (~300ms) and noise bounded by limit=5.
      */
     private suspend fun retrieveRelevantTransactions(query: String): List<TransactionVectorEntity> {
-        if (embeddingClient == null || query.isBlank()) return emptyList()
+        if (embeddingClient == null || query.isBlank()) {
+            lastEmbedMs = null
+            return emptyList()
+        }
+        val startedAt = System.currentTimeMillis()
         return try {
             val queryEmb = embeddingClient.embed(query, isQuery = true).getOrNull() ?: return emptyList()
             TransactionVectorBox.searchByVector(queryEmb, limit = 5)
-        } catch (_: Exception) { emptyList() }
+        } catch (_: Exception) {
+            emptyList()
+        } finally {
+            lastEmbedMs = System.currentTimeMillis() - startedAt
+        }
     }
 
     /**

@@ -51,4 +51,12 @@ open class TransactionRepository(
     open fun getCategoryBreakdownById(startOfDay: Long, endOfDay: Long): Flow<List<CategoryTotal>> = dao.getCategoryBreakdownById(startOfDay, endOfDay)
     open fun getIncomeBreakdownById(startOfDay: Long, endOfDay: Long): Flow<List<CategoryTotal>> = dao.getIncomeBreakdownById(startOfDay, endOfDay)
     open fun getTransactionCount(startOfDay: Long, endOfDay: Long): Flow<Int> = dao.getTransactionCount(startOfDay, endOfDay)
+
+    /**
+     * Sidik jari data untuk invalidasi cache AI. Kegagalan tidak boleh
+     * menggagalkan pemanggil — kembalikan string kosong agar cache bust sekali
+     * jalan, bukan error fatal.
+     */
+    open suspend fun dataFingerprint(): String =
+        runCatching { dao.activeDataFingerprint().asKey() }.getOrDefault("")
 }
