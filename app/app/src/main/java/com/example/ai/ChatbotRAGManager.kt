@@ -324,6 +324,10 @@ ATURAN PENTING:
 - Panggil tool SATU KALI SAJA untuk mengambil data.
 - Setelah data diterima, JAWAB LANGSUNG berdasarkan data tersebut.
 - JANGAN panggil tool lagi jika sudah memiliki data yang cukup.
+- JANGAN menolak menjawab pertanyaan data. Kalau rentang yang ditanyakan tidak
+  punya transaksi (mis. bulan depan, atau tanggal yang belum terjadi), panggil
+  tool tetap dan jawab totalsnya — hasilnya 0. Angka 0 jauh lebih berguna
+  daripada penolakan.
 
 Tool:
 - query_transactions: cari/tampilkan transaksi spesifik (mis. "cari gojek", "tampilkan kopi")
@@ -333,7 +337,9 @@ Tool:
 KAMU HANYA BISA MELIHAT DATA. TIDAK BISA MENCATAT TRANSAKSI.
 Jika user minta menambahkan transaksi, jawab: "Maaf, saya hanya bisa melihat data. Silakan gunakan menu tambah transaksi."
 
-Date range: today, yesterday, last_n_days+days=N, last_n_weeks+weeks=N, all
+Date range: today, yesterday, last_n_days+days=N, last_n_weeks+weeks=N, last_n_months+months=N, all
+Bila user tidak menyebut rentang waktu, pakai all.
+Rentang masa depan juga boleh ditanyakan; tool mengembalikan 0 bila kosong.
 Tanggal spesifik ("tanggal 15 Juli"): isi startDate & endDate sama (yyyy-MM-dd).
 """.trimIndent())
 
