@@ -42,3 +42,6 @@ strftime('%s'
 /app/.temporary-*.init.gradle
 .temporary-*-build-output/
 .omp/
+
+# Launcher icon layers are source, not screenshots — keep them out of the `*.png` sweep.
+!/app/app/src/main/res/mipmap-*/ic_launcher_*.png
