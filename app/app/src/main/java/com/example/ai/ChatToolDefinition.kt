@@ -24,7 +24,9 @@ object ChatToolDefinition {
             "today", "yesterday", "last_n_days", "last_n_weeks",
             "last_n_months", "week", "month", "all"
         ),
-        "description" to "Rentang waktu relatif. Gunakan 'last_n_*' + days/weeks/months untuk N hari/minggu/bulan terakhir."
+        "description" to "Rentang waktu relatif. Gunakan 'last_n_*' + days/weeks/months untuk N hari/minggu/bulan terakhir. " +
+            "Bila user TIDAK menyebut rentang waktu, pakai 'all' (akumulasi seluruh waktu) — bukan 'today'. " +
+            "Hanya pakai 'today'/'yesterday' bila kalimatnya benar-benar menyebut 'hari ini' atau 'kemarin'."
     )
 
     /** Tanggal spesifik (ISO yyyy-MM-dd). Bila dipakai bersama endDate, menang atas dateRange relatif. */

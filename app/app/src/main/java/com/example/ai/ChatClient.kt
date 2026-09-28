@@ -65,6 +65,11 @@ interface ChatClient {
                 emit(ChatStreamEvent.Delta(r.content))
                 emit(ChatStreamEvent.Done(r.content))
             }
+            // Client non-SSE tetap dilaporkan tokennya supaya Diagnostics
+            // terisi juga untuk fake dan fallback apa pun.
+            if (r.promptTokens > 0 || r.completionTokens > 0) {
+                emit(ChatStreamEvent.Usage(r.promptTokens, r.completionTokens))
+            }
         }
     }
 }

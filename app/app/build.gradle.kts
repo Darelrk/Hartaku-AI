@@ -109,6 +109,7 @@ android {
         // Runner online memanggil NIM sungguhan — opt-in lewat -PevalOnline.
         if (!project.hasProperty("evalOnline")) {
           test.filter.excludeTestsMatching("com.example.eval.OnlineEvalTest")
+          test.filter.excludeTestsMatching("com.example.eval.StreamUsageOnlineTest")
         }
       }
     }

@@ -158,4 +158,41 @@ class MultiTurnOrchestratorTest {
         // The history for the second call should contain the tool result
         assertTrue(secondCallHistory!!.any { it.role == "tool" })
     }
+
+    // ── Token telemetry ──
+
+    @Test
+    fun `token usage accumulates across turns in non-stream path`() = runBlocking {
+        fakeClient.turnToolCalls = mapOf(
+            0 to listOf(ToolCall("call_1", "query_transactions",
+                """{"keyword":"kopi","dateRange":"all"}"""))
+        )
+        fakeClient.turnContent = mapOf(0 to "", 1 to "Total: Rp 25.000.")
+
+        orchestrator.processQuery("cari transaksi kopi", "Test prompt", emptyList())
+
+        // Dua putaran LLM, FakeChatClient melaporkan 10/10 tiap putaran.
+        // Hanya mencatat putaran pertama membuat biaya terlalu rendah.
+        assertEquals(20, orchestrator.lastPromptTokens)
+        assertEquals(20, orchestrator.lastCompletionTokens)
+    }
+
+    @Test
+    fun `streaming path records token usage`() = runBlocking {
+        fakeClient.turnToolCalls = mapOf(
+            0 to listOf(ToolCall("call_1", "query_transactions",
+                """{"keyword":"kopi","dateRange":"all"}"""))
+        )
+        fakeClient.turnContent = mapOf(0 to "", 1 to "Total: Rp 25.000.")
+
+        val streamed = StringBuilder()
+        orchestrator.processQueryStream("cari transaksi kopi", "Test prompt", emptyList())
+            .collect { streamed.append(it) }
+
+        assertTrue("stream harus menghasilkan isi", streamed.isNotBlank())
+        // Jalur streaming inilah yang dipakai produksi; sebelumnya kolom token
+        // di Diagnostics selalu null karena event usage tidak pernah dikirim.
+        assertEquals(20, orchestrator.lastPromptTokens)
+        assertEquals(20, orchestrator.lastCompletionTokens)
+    }
 }

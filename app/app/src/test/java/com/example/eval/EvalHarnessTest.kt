@@ -143,7 +143,7 @@ class EvalHarnessTest {
 
     @Test
     fun corpusHasThirtyUniqueCases() {
-        assertEquals(30, EvalCorpus.cases.size)
+        assertEquals(31, EvalCorpus.cases.size)
         assertEquals(
             "id kasus harus unik",
             EvalCorpus.cases.size,

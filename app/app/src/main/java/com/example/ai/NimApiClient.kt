@@ -29,6 +29,13 @@ sealed class ChatStreamEvent {
     data class Delta(val content: String) : ChatStreamEvent()
     data class ToolCalls(val toolCalls: List<ToolCall>) : ChatStreamEvent()
     data class Done(val content: String) : ChatStreamEvent()
+
+    /**
+     * Token pemakaian satu putaran LLM. Selalu datang SETELAH [Done] atau
+     * [ToolCalls] karena chunk `usage` di protokol SSE dikirim paling akhir,
+     * setelah `finish_reason`.
+     */
+    data class Usage(val promptTokens: Int, val completionTokens: Int) : ChatStreamEvent()
 }
 
 class NimApiClient(
@@ -189,6 +196,9 @@ class NimApiClient(
             put("temperature", temperature)
             put("max_tokens", maxTokens)
             put("stream", true)
+            // Tanpa ini server tidak mengirim chunk `usage`, sehingga kolom token
+            // di Diagnostics selalu kosong pada jalur produksi yang streaming.
+            put("stream_options", JSONObject().put("include_usage", true))
             put("tools", toJsonValue(ChatToolDefinition.allTools))
             put("tool_choice", toolChoice)
             put("messages", JSONArray().apply {
@@ -218,6 +228,8 @@ class NimApiClient(
         val toolCallBuffers = mutableMapOf<Int, ToolCallBuilder>()
         var accumulatedContent = StringBuilder()
         var doneSent = false
+        var promptTokens = 0
+        var completionTokens = 0
 
         response.body?.byteStream()?.bufferedReader()?.use { reader ->
             while (true) {
@@ -228,7 +240,15 @@ class NimApiClient(
                     try {
                         val json = JSONObject(data)
                         val choices = json.optJSONArray("choices")
-                        if (choices == null || choices.length() == 0) continue
+                        if (choices == null || choices.length() == 0) {
+                            // Chunk penutup saat include_usage: `choices` kosong
+                            // dan angka pemakaian ada di `usage`.
+                            json.optJSONObject("usage")?.let { usage ->
+                                promptTokens = usage.optInt("prompt_tokens", 0)
+                                completionTokens = usage.optInt("completion_tokens", 0)
+                            }
+                            continue
+                        }
                         val choice = choices.getJSONObject(0)
 
                         // Parse delta FIRST (tool_calls content), THEN check finish_reason
@@ -278,11 +298,16 @@ class NimApiClient(
                                     doneSent = true
                                 }
                             }
-                            break
+                            // Jangan `break` di sini: chunk `usage` menyusul dan
+                            // kita masih membacanya. Loop berhenti di "[DONE]".
+                            continue
                         }
                     } catch (_: Exception) { /* skip malformed SSE chunks */ }
                 }
             }
+        }
+        if (promptTokens > 0 || completionTokens > 0) {
+            emit(ChatStreamEvent.Usage(promptTokens, completionTokens))
         }
             // Stream ended without a finish_reason — emit Done so orchestrator stops looping
             if (!doneSent) emit(ChatStreamEvent.Done(accumulatedContent.toString()))

@@ -40,7 +40,15 @@ data class EvalCase(
  * | `expenses_7days` / `expenses_1week` / `expenses_2weeks` / `expenses_30days` | 7h / 1minggu / 2minggu / 30h | 162.000 (semua baris) |
  * | `income_1month` / `income_3months` | 1bulan / 3bulan | 1.500.000 |
  * | `balance_7days` / `balance_1week` | 7h / 1minggu | 1.338.000 |
+ * | `balance_current` / `balance_typo` / `balance_all` | `all` | 1.338.000 |
+ * | `balance_today_explicit` | today | 1.370.000 |
  * | `tx_30days_no_keyword` | 30h | rowCount 5, total 162.000 |
+ *
+ * "Saldo saya" tanpa penyebut rentang berarti saldo berjalan saat ini,
+ * yaitu akumulasi seluruh waktu (`all`) — konvensi umum aplikasi keuangan
+ * pribadi. Ekspektasi lama memakai `today` untuk kueri itu, yang tidak
+ * pernah dimaksudkan pengguna mana pun. Aturan defaultnya kini dinyatakan
+ * eksplisit di `ChatToolDefinition.dateRangeSchema`.
  *
  * `toolResultMustContain` sengaja memakai angka hasil hitungan, bukan label
  * rentang yang di-ulang. Kalau memakai label, model yang memilih rentang
@@ -85,12 +93,13 @@ object EvalCorpus {
         EvalCase("income_zero_yesterday", "berapa pemasukan kemarin?", "get_income", yesterday, "\"totalIncome\":0", emptyList(), expectNoData = true),
 
         // --- get_balance --------------------------------------------------
-        EvalCase("balance_today", "berapa saldo saya?", "get_balance", today, "1370000", listOf("1.370.000")),
+        EvalCase("balance_current", "berapa saldo saya?", "get_balance", all, "\"balance\":1338000", listOf("1.338.000")),
         EvalCase("balance_all", "saldo keseluruhan", "get_balance", all, "1338000", listOf("1.338.000")),
         EvalCase("balance_negative", "berapa saldo kemarin?", "get_balance", yesterday, "-20000", listOf("20.000")),
         EvalCase("balance_7days", "saldo 7 hari terakhir", "get_balance", days7, "\"balance\":1338000", listOf("1.338.000")),
         EvalCase("balance_1week", "saldo minggu ini", "get_balance", weeks1, "\"balance\":1338000", listOf("1.338.000")),
-        EvalCase("balance_typo", "berapa saldo akhir?", "get_balance", today, "1370000", listOf("1.370.000")),
+        EvalCase("balance_typo", "berapa saldo akhir?", "get_balance", all, "\"balance\":1338000", listOf("1.338.000")),
+        EvalCase("balance_today_explicit", "berapa saldo hari ini?", "get_balance", today, "\"balance\":1370000", listOf("1.370.000")),
 
         // --- query_transactions -------------------------------------------
         EvalCase("tx_keyword_gojek", "cari gojek", "query_transactions", """{"keyword":"Gojek","dateRange":"all"}""", "45000", listOf("45.000")),

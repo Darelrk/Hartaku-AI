@@ -66,10 +66,10 @@ class MultiTurnOrchestrator(
                 return "Maaf, saya sedang bermasalah. Coba lagi ya."
             }
             lastLlmStages = lastLlmStages + AiTraceStage("llm", System.currentTimeMillis() - llmStartedAt)
-            if (lastPromptTokens == null) {
-                lastPromptTokens = response.promptTokens
-                lastCompletionTokens = response.completionTokens
-            }
+            // Dijumlahkan per putaran: query ber-alat punya beberapa panggilan
+            // LLM, dan hanya mencatat putaran pertama membuat biaya under-report.
+            lastPromptTokens = (lastPromptTokens ?: 0) + response.promptTokens
+            lastCompletionTokens = (lastCompletionTokens ?: 0) + response.completionTokens
 
             when (response.finishReason) {
                 "stop" -> return response.content.ifBlank {
@@ -166,6 +166,12 @@ class MultiTurnOrchestrator(
                         done = true
                         close()
                         return@collect
+                    }
+                    is ChatStreamEvent.Usage -> {
+                        // Dijumlahkan, bukan ditimpa: satu query tool-use bisa
+                        // costing beberapa putaran LLM.
+                        lastPromptTokens = (lastPromptTokens ?: 0) + event.promptTokens
+                        lastCompletionTokens = (lastCompletionTokens ?: 0) + event.completionTokens
                     }
                 }
             }
