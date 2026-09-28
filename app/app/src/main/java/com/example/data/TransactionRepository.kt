@@ -47,6 +47,12 @@ open class TransactionRepository(
     }
     open fun getAllDeleted(): Flow<List<Transaction>> = dao.getAllDeleted()
     open suspend fun updateTransaction(transaction: Transaction) {
+        // Guard yang sama dengan insert. EditTransactionSheet mengurai nominal
+        // dari teks dengan `filter { it.isDigit() }`, sehingga mengetik "0"
+        // menghasilkan 0.0 yang akan tersimpan tanpa validasi apa pun.
+        require(transaction.amount.isFinite() && transaction.amount > 0.0) {
+            "Nominal transaksi harus lebih besar dari nol"
+        }
         dao.updateTransaction(transaction)
         onUpdated(transaction)
     }

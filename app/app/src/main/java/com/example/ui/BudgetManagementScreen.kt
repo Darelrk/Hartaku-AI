@@ -122,6 +122,15 @@ fun BudgetManagementScreen(
         }
     }
 
+    // `uiState.error` diisi ViewModel tapi tidak pernah dirender, sehingga
+    // kegagalan create/edit terlihat seperti form yang hilang tanpa alasan.
+    // Dipakai kembali snackbar host yang sudah ada, tanpa menambah layout.
+    LaunchedEffect(uiState.error) {
+        val message = uiState.error ?: return@LaunchedEffect
+        snackbarHostState.showSnackbar(message)
+        viewModel.clearError()
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()

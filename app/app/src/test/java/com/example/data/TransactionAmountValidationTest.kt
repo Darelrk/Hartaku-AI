@@ -8,12 +8,16 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
 /**
- * Nominal transaksi harus lebih besar dari nol dan berupa angka berhingga.
+ * Nominal transaksi harus lebih besar dari nol dan berupa angka berhingga —
+ * pada insert maupun update.
  *
- * `ManualInputViewModel.extractAmount` mengembalikan 0.0 kalau teks tidak memuat
- * angka, jadi tanpa guard di repository, mengetik "makan siang" tanpa nominal
- * akan tersimpan sebagai transaksi Rp 0 — lolos tanpa error, `isSaved = true`,
- * lalu tercampur ke setiap total, breakdown kategori, dan konteks AI.
+ * Insert: `ManualInputViewModel.extractAmount` mengembalikan 0.0 kalau teks tidak
+ * memuat angka, jadi "makan siang" tanpa nominal akan tersimpan sebagai transaksi
+ * Rp 0 — lolos tanpa error, `isSaved = true`, lalu tercampur ke setiap total,
+ * breakdown kategori, dan konteks AI.
+ *
+ * Update: `EditTransactionSheet` mengurai nominal dengan `filter { it.isDigit() }`,
+ * jadi mengetik "0" menghasilkan 0.0.
  */
 @RunWith(RobolectricTestRunner::class)
 class TransactionAmountValidationTest {
@@ -33,8 +37,11 @@ class TransactionAmountValidationTest {
      */
     private fun repo() = TransactionRepository(StubTransactionDao())
 
-    /** Pesan penolakan, atau null bila insert diam-diam berhasil. */
-    private suspend fun rejectionMessage(amount: Double): String? =
+    private val invalidAmounts =
+        listOf(0.0, -50_000.0, Double.NaN, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY)
+
+    /** Pesan penolakan, atau null bila operasi diam-diam berhasil. */
+    private suspend fun insertRejection(amount: Double): String? =
         try {
             repo().insertTransaction(tx(amount))
             null
@@ -42,9 +49,17 @@ class TransactionAmountValidationTest {
             e.message
         }
 
+    private suspend fun updateRejection(amount: Double): String? =
+        try {
+            repo().updateTransaction(tx(amount))
+            null
+        } catch (e: IllegalArgumentException) {
+            e.message
+        }
+
     @Test
-    fun zeroAmountIsRejected() = runBlocking {
-        val message = rejectionMessage(0.0)
+    fun insertRejectsZeroWithReadableMessage() = runBlocking {
+        val message = insertRejection(0.0)
         assertNotNull("transaksi Rp 0 harus ditolak", message)
         assertTrue(
             "pesan harus menjelaskan nominal, dapat: $message",
@@ -53,24 +68,25 @@ class TransactionAmountValidationTest {
     }
 
     @Test
-    fun negativeAmountIsRejected() = runBlocking {
-        val message = rejectionMessage(-50_000.0)
-        assertNotNull("nominal negatif harus ditolak", message)
-        assertTrue(message!!.contains("lebih besar dari nol"))
+    fun insertRejectsInvalidAmounts() = runBlocking {
+        for (bad in invalidAmounts) {
+            assertNotNull("insert dengan nominal $bad harus ditolak", insertRejection(bad))
+        }
     }
 
     @Test
-    fun nonFiniteAmountIsRejected() = runBlocking {
-        for (bad in listOf(Double.NaN, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY)) {
-            val message = rejectionMessage(bad)
-            assertNotNull("nominal $bad harus ditolak", message)
+    fun updateRejectsInvalidAmounts() = runBlocking {
+        for (bad in invalidAmounts) {
+            val message = updateRejection(bad)
+            assertNotNull("update dengan nominal $bad harus ditolak", message)
             assertTrue(message!!.contains("lebih besar dari nol"))
         }
     }
 
     @Test
-    fun positiveAmountPassesValidation() = runBlocking {
+    fun positiveAmountPassesBothGuards() = runBlocking {
         // Tidak melempar = guard tidak menyaring nominal sah.
         repo().insertTransaction(tx(85_000.0))
+        repo().updateTransaction(tx(120_000.0))
     }
 }

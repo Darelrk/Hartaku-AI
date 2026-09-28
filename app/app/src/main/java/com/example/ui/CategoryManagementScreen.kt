@@ -75,6 +75,10 @@ fun CategoryManagementScreen(
     var showEditDialog by remember { mutableStateOf<Category?>(null) }
     var showDeleteConfirm by remember { mutableStateOf<Category?>(null) }
     var searchQuery by remember { mutableStateOf("") }
+    // Slug bentrok dilempar sebagai exception dari repository; tanpa state ini
+    // coroutine UI mati dan pengguna tidak pernah tahu kenapa dialog tak
+    // pernah tertutup.
+    var formError by remember { mutableStateOf<String?>(null) }
 
     fun reload() {
         scope.launch {
@@ -191,6 +195,31 @@ fun CategoryManagementScreen(
             }
         }
 
+        formError?.let { message ->
+            Card(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(horizontal = 24.dp, vertical = 88.dp),
+                colors = CardDefaults.cardColors(containerColor = DarkSurface)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = message,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = SunsetOrange,
+                        modifier = Modifier.weight(1f)
+                    )
+                    TextButton(onClick = { formError = null }) {
+                        Text("Tutup", color = LimeSqueeze)
+                    }
+                }
+            }
+        }
+
         FloatingActionButton(
             onClick = { showCreateDialog = true },
             modifier = Modifier
@@ -210,18 +239,23 @@ fun CategoryManagementScreen(
             initialTypeClass = "EXPENSE",
             onConfirm = { name, slug, typeClass, icon, color, aliasesStr ->
                 scope.launch {
-                    val cat = Category(
-                        id = UUID.randomUUID().toString(),
-                        name = name,
-                        slug = slug,
-                        typeClass = typeClass,
-                        icon = icon,
-                        color = color,
-                        aliases = aliasesStr
-                    )
-                    repo.insert(cat)
-                    reload()
-                    showCreateDialog = false
+                    try {
+                        val cat = Category(
+                            id = UUID.randomUUID().toString(),
+                            name = name,
+                            slug = slug,
+                            typeClass = typeClass,
+                            icon = icon,
+                            color = color,
+                            aliases = aliasesStr
+                        )
+                        repo.insert(cat)
+                        reload()
+                        formError = null
+                        showCreateDialog = false
+                    } catch (e: Exception) {
+                        formError = e.message ?: "Gagal menyimpan kategori"
+                    }
                 }
             },
             onDismiss = { showCreateDialog = false }
@@ -238,17 +272,24 @@ fun CategoryManagementScreen(
             initialAliases = cat.aliases,
             onConfirm = { name, slug, typeClass, icon, color, aliasesStr ->
                 scope.launch {
-                    repo.update(cat.copy(
-                        name = name,
-                        slug = slug,
-                        typeClass = typeClass,
-                        icon = icon,
-                        color = color,
-                        aliases = aliasesStr,
-                        updatedAt = System.currentTimeMillis()
-                    ))
-                    reload()
-                    showEditDialog = null
+                    try {
+                        repo.update(cat.copy(
+                            name = name,
+                            slug = slug,
+                            typeClass = typeClass,
+                            icon = icon,
+                            color = color,
+                            aliases = aliasesStr,
+                            updatedAt = System.currentTimeMillis()
+                        ))
+                        reload()
+                        formError = null
+                        showEditDialog = null
+                    } catch (e: Exception) {
+                        // @Update tetap menabrak unique index slug; alasan
+                        // kegagalannya harus tampil, bukan hilang diam-diam.
+                        formError = e.message ?: "Gagal menyimpan kategori"
+                    }
                 }
             },
             onDismiss = { showEditDialog = null }

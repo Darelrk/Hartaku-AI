@@ -12,7 +12,23 @@ open class CategoryRepository(
     open suspend fun getBySlug(slug: String): Category? = dao.getBySlug(slug)
     open suspend fun getByTypeClass(typeClass: String): List<Category> = dao.getByTypeClass(typeClass)
     open suspend fun search(query: String): List<Category> = dao.search(query)
-    open suspend fun insert(category: Category) = dao.insert(category)
+    /**
+     * Menolak slug yang sudah dimiliki kategori lain.
+     *
+     * `CategoryDao.insert` memakai `OnConflictStrategy.REPLACE` dan `slug`
+     * punya unique index, jadi insert dengan slug bentrok tidak men gagal —
+     * ia MENGHAPUS row lama. Karena FK ke `transactions.categoryId` dan
+     * `budgets.categoryId` memakai `ON DELETE SET NULL`, seluruh riwayat
+     * kategori lama ikut menjadi null tanpa jejak.
+     */
+    open suspend fun insert(category: Category) {
+        val slugOwner = dao.getBySlug(category.slug)
+        require(slugOwner == null || slugOwner.id == category.id) {
+            "Kategori '${slugOwner?.name}' sudah memakai slug '${category.slug}'. " +
+                "Gunakan nama lain."
+        }
+        dao.insert(category)
+    }
     open suspend fun insertAll(categories: List<Category>) = dao.insertAll(categories)
     open suspend fun update(category: Category) = dao.update(category)
     open suspend fun softDelete(id: String) = dao.softDelete(id)
@@ -31,6 +47,14 @@ open class CategoryRepository(
         if (existing != null) {
             return existing
         }
+
+        // Kategori dengan slug sama mungkin sudah di-soft-delete. Jangan buat
+        // duplikat: REPLACE akan menghapus row lama dan memutus referensi
+        // transaksi yang masih memakainya. Pulihkan saja.
+        dao.getBySlug(generatedSlug)?.let { archived ->
+            dao.restore(archived.id)
+            return dao.getById(archived.id) ?: archived
+        }
         
         // Generate UUID, create Category object, insert it and return it.
         val uuid = java.util.UUID.randomUUID().toString()
@@ -45,7 +69,7 @@ open class CategoryRepository(
             color = "#95A5A6",
             sortOrder = 50
         )
-        dao.insert(newCategory)
+        insert(newCategory)
         return newCategory
     }
 }

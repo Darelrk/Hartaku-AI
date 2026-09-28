@@ -159,11 +159,14 @@ fun EditTransactionSheet(
 
             Spacer(modifier = Modifier.height(28.dp))
 
+            // Nominal ikut divalidasi di sini, bukan hanya di repository, supaya
+            // tombol Simpan tidak menyala untuk input yang pasti ditolak.
+            val typedAmount = amountText.filter { it.isDigit() }.toDoubleOrNull()
+
             // Aksi
             Button(
                 onClick = {
-                    val parsedAmount = amountText.filter { it.isDigit() }.toDoubleOrNull()
-                        ?: transaction.amount
+                    val parsedAmount = typedAmount ?: transaction.amount
                     val updated = transaction.copy(
                         amount = parsedAmount,
                         description = descText.trim().ifBlank { transaction.description },
@@ -182,7 +185,7 @@ fun EditTransactionSheet(
                     containerColor = LimeSqueeze,
                     contentColor = MidnightAbyss
                 ),
-                enabled = descText.isNotBlank() && amountText.isNotBlank()
+                enabled = descText.isNotBlank() && typedAmount != null && typedAmount > 0.0
             ) {
                 Text(
                     text = "Simpan",

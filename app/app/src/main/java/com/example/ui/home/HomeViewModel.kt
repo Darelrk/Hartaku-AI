@@ -156,8 +156,20 @@ class HomeViewModel(
                 }
         }
 
+        // `Budget.spent` adalah field TERSIMPAN dan praktis selalu 0 — nilainya
+        // hanya dihitung ulang oleh `withSpent`. Home dan DailyCheckWorker
+        // sebelumnya membaca field mentah itu, sehingga KPI budget-vs-aktual di
+        // chart dan alert harian menampilkan angka basi sementara layar
+        // management sudah benar. Sekarang Home memakai hitungan yang sama.
+        val (monthStart, monthEnd) = currentMonthRange()
         viewModelScope.launch {
-            budgetRepo.getAllBudgets().collect { budgets ->
+            combine(
+                budgetRepo.getAllBudgets(),
+                transactionRepo.getTransactionsInRange(monthStart, monthEnd),
+                transactionRepo.getIncomeInRange(monthStart, monthEnd)
+            ) { budgets, txs, income ->
+                budgets.withSpent(txs, income)
+            }.collect { budgets ->
                 flow.update { it.copy(budgets = budgets) }
             }
         }
@@ -425,19 +437,37 @@ fun currentMonthRange(): Pair<Long, Long> {
     return start to end
 }
 
+/**
+ * Menghitung ulang `spent` — dan `amount` untuk budget berbasis persen — dari
+ * transaksi nyata.
+ *
+ * `Budget.spent` adalah field TERSIMPAN dan praktis selalu 0; fungsi inilah satu-
+ *-satunya tempat angka itu dihitung. Semua tampilan budget dan alert harian
+ * harus lewat sini, bukan membaca field mentah.
+ *
+ * `period` dihormati: budget `weekly` hanya menghitung transaksi 7 hari
+ * terakhir dan memakai income jendela yang sama sebagai basis persen.
+ * Sebelumnya `period` disimpan tapi tidak pernah dipakai, sehingga budget
+ * mingguan menampilkan pengeluaran dan target berbasis bulanan.
+ */
 fun List<Budget>.withSpent(
     transactions: List<Transaction>,
-    monthlyIncome: Double
+    monthlyIncome: Double,
+    now: Long = System.currentTimeMillis()
 ): List<Budget> {
-    val expenseByCategory = transactions
-        .filter { it.type == TransactionType.EXPENSE }
-        .groupBy { it.categoryId }
-        .mapValues { (_, txs) -> txs.sumOf { it.amount } }
-    val expenseByBudgetId = transactions
-        .filter { it.type == TransactionType.EXPENSE && it.budgetId != null }
-        .groupBy { it.budgetId!! }
-        .mapValues { (_, txs) -> txs.sumOf { it.amount } }
+    val windowStart = now - 7L * 24 * 60 * 60 * 1000
     return map { budget ->
+        val weekly = budget.period.equals("weekly", ignoreCase = true)
+        val inWindow = transactions.filter { !weekly || it.timestamp >= windowStart }
+        val expenses = inWindow.filter { it.type == TransactionType.EXPENSE }
+        val expenseByBudgetId = expenses
+            .filter { it.budgetId != null }
+            .groupBy { it.budgetId!! }
+            .mapValues { (_, txs) -> txs.sumOf { it.amount } }
+        val expenseByCategory = expenses
+            .groupBy { it.categoryId }
+            .mapValues { (_, txs) -> txs.sumOf { it.amount } }
+
         // Prefer explicit budgetId attribution (newer transactions carry this).
         // Fall back to categoryIds for legacy budgets without budgetId wiring.
         val newSpent = expenseByBudgetId[budget.id]
@@ -445,7 +475,12 @@ fun List<Budget>.withSpent(
                 val catIds = budget.parseCategoryIds()
                 catIds.sumOf { expenseByCategory[it] ?: 0.0 }
             }
-        val newAmount = if (budget.percent > 0) monthlyIncome * budget.percent / 100 else budget.amount
+        val baseIncome = if (weekly) {
+            inWindow.filter { it.type == TransactionType.INCOME }.sumOf { it.amount }
+        } else {
+            monthlyIncome
+        }
+        val newAmount = if (budget.percent > 0) baseIncome * budget.percent / 100 else budget.amount
         budget.copy(spent = newSpent, amount = newAmount)
     }
 }
