@@ -29,6 +29,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -291,7 +292,12 @@ fun ChartDashboardSlide(
                         // Horizontal bar chart — each bar = Row[label | bar | amount]
                         Column(Modifier.fillMaxWidth()) {
                             daily.forEachIndexed { index, expense ->
-                                val fraction = if (maxValue > 0) (expense.total / maxValue).toFloat().coerceAtLeast(0f) else 0f
+                                val fraction = (if (maxValue > 0) (expense.total / maxValue).toFloat() else 0f).coerceIn(0f, 1f)
+                                val animatedFraction by animateFloatAsState(
+                                    targetValue = fraction,
+                                    animationSpec = tween(220),
+                                    label = "expenseBar"
+                                )
                                 val barColor = if (index < 7) currentWeekColor.copy(alpha = 0.20f) else currentWeekColor
                                 val amountColor = if (index < 7) GhostWhite.copy(alpha = 0.30f) else GhostWhite
                                 val dayName = formatDayName(expense.dayStart)
@@ -313,11 +319,13 @@ fun ChartDashboardSlide(
                                             .weight(1f)
                                             .height(16.dp)
                                             .background(GhostWhite.copy(alpha = 0.08f), RoundedCornerShape(4.dp))
+                                            .testTag("expenseBarTrack-$index")
                                     ) {
                                         Box(
                                             modifier = Modifier
                                                 .fillMaxHeight()
-                                                .fillMaxWidth(fraction.coerceAtLeast(0.02f))
+                                                .fillMaxWidth(animatedFraction)
+                                                .testTag("expenseBar-$index")
                                                 .background(barColor, RoundedCornerShape(4.dp))
                                         )
                                     }

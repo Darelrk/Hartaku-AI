@@ -1,12 +1,15 @@
 package com.example.ui.screenshot
 
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onRoot
 import com.example.data.DailyExpense
 import com.example.ui.home.ChartDashboardSlide
 import com.example.ui.home.TwoWeekExpense
 import com.example.ui.theme.MyApplicationTheme
 import com.github.takahirom.roborazzi.captureRoboImage
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -99,5 +102,60 @@ class ChartDashboardSlideScreenshotTest {
             }
         }
         composeTestRule.onRoot().captureRoboImage()
+    }
+
+    @Test
+    fun zeroExpenseBarHasNoVisibleWidth() {
+        val today = Calendar.getInstance().timeInMillis
+        val daily = (0..13).map { index ->
+            DailyExpense(today + index * 86_400_000L, if (index == 13) 100.0 else 0.0)
+        }
+        composeTestRule.setContent {
+            MyApplicationTheme {
+                ChartDashboardSlide(
+                    twoWeek = TwoWeekExpense(daily, thisWeekTotal = 100.0, prevWeekTotal = 0.0)
+                )
+            }
+        }
+
+        val width = composeTestRule.onNodeWithTag("expenseBar-0").fetchSemanticsNode().boundsInRoot.width
+        assertTrue("zero expense bars have no visible width", width == 0f)
+    }
+
+    @Test
+    fun changedExpenseBarWidthAnimatesToTarget() {
+        composeTestRule.mainClock.autoAdvance = false
+        val today = Calendar.getInstance().timeInMillis
+        val daily = (0..13).map { index ->
+            DailyExpense(today + index * 86_400_000L, if (index == 13) 100.0 else 0.0)
+        }
+        val chart = mutableStateOf(TwoWeekExpense(daily, thisWeekTotal = 100.0, prevWeekTotal = 0.0))
+        composeTestRule.setContent {
+            MyApplicationTheme { ChartDashboardSlide(twoWeek = chart.value) }
+        }
+        composeTestRule.waitForIdle()
+
+        val bar = composeTestRule.onNodeWithTag("expenseBar-0")
+        val track = composeTestRule.onNodeWithTag("expenseBarTrack-0")
+        val startWidth = bar.fetchSemanticsNode().boundsInRoot.width
+        composeTestRule.runOnIdle {
+            chart.value = chart.value.copy(
+                daily = daily.mapIndexed { index, expense ->
+                    if (index == 0) expense.copy(total = 100.0) else expense
+                }
+            )
+        }
+        // Flush the changed layout before advancing the manually controlled animation clock.
+        bar.fetchSemanticsNode()
+        composeTestRule.mainClock.advanceTimeByFrame()
+        composeTestRule.mainClock.advanceTimeBy(110)
+        val intermediateWidth = bar.fetchSemanticsNode().boundsInRoot.width
+        composeTestRule.mainClock.advanceTimeBy(120)
+        val finalWidth = bar.fetchSemanticsNode().boundsInRoot.width
+        val trackWidth = track.fetchSemanticsNode().boundsInRoot.width
+
+        assertTrue("bar grows during the tween", intermediateWidth > startWidth)
+        assertTrue("bar is still animating at 110 ms", intermediateWidth < trackWidth)
+        assertTrue("bar reaches full target after the tween", finalWidth == trackWidth)
     }
 }
