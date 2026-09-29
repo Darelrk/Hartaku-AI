@@ -1,5 +1,9 @@
 package com.example.ui.home
 
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.HorizontalPager
@@ -118,39 +122,44 @@ private fun DaySlides(
                     translationY = slideOffset * parallaxPx
                 }
         ) {
-            if (state.loading) {
-                // DayUiState default-nya nol, jadi tanpa gerbang ini semua slide
-                // sempat menampilkan "Rp 0" sebelum data Room sampai, lalu meloncat
-                // ke angka sebenarnya. `loading` sudah diisi ViewModel tapi
-                // sebelumnya tidak pernah dibaca.
-                LoadingSlide(modifier = Modifier.align(Alignment.Center))
-            } else when (slide) {
-                0 -> SummarySlide(
-                    totalSpending = state.totalSpending,
-                    totalIncome = state.totalIncome,
-                    previousDaySpending = state.previousDaySpending,
-                    transactionCount = state.transactionCount,
-                    categoryBreakdown = state.categoryBreakdown,
-                    budgets = state.budgets,
-                    insightText = state.insightText
-                )
-                1 -> AdvancedTransactionListSlide(
-                    transactions = state.transactions,
-                    categories = categories,
-                    onDelete = onDelete,
-                    onUpdate = onUpdate
-                )
-                2 -> ChartDashboardSlide(
-                    twoWeek = twoWeek,
-                    budgets = state.budgets
-                )
-                3 -> DailyInsightSlide(
-                    chatHistory = chatHistory,
-                    isChatLoading = isChatLoading,
-                    onSendMessage = onSendMessage,
-                )
+            Crossfade(
+                targetState = state.loading,
+                animationSpec = tween(150),
+                label = "homeLoading"
+            ) { isLoading ->
+                if (isLoading) {
+                    // DayUiState default-nya nol, jadi tanpa gerbang ini semua slide
+                    // sempat menampilkan "Rp 0" sebelum data Room sampai, lalu meloncat
+                    // ke angka sebenarnya. `loading` sudah diisi ViewModel tapi
+                    // sebelumnya tidak pernah dibaca.
+                    LoadingSlide(modifier = Modifier.fillMaxSize())
+                } else when (slide) {
+                    0 -> SummarySlide(
+                        totalSpending = state.totalSpending,
+                        totalIncome = state.totalIncome,
+                        previousDaySpending = state.previousDaySpending,
+                        transactionCount = state.transactionCount,
+                        categoryBreakdown = state.categoryBreakdown,
+                        budgets = state.budgets,
+                        insightText = state.insightText
+                    )
+                    1 -> AdvancedTransactionListSlide(
+                        transactions = state.transactions,
+                        categories = categories,
+                        onDelete = onDelete,
+                        onUpdate = onUpdate
+                    )
+                    2 -> ChartDashboardSlide(
+                        twoWeek = twoWeek,
+                        budgets = state.budgets
+                    )
+                    3 -> DailyInsightSlide(
+                        chatHistory = chatHistory,
+                        isChatLoading = isChatLoading,
+                        onSendMessage = onSendMessage,
+                    )
+                }
             }
-
             // Scroll indicator dots (kanan) — slide aktif highlighted
             SlideDots(
                 current = slidePager.currentPage,
@@ -183,11 +192,21 @@ private fun SlideDots(current: Int, count: Int, modifier: Modifier = Modifier) {
     ) {
         repeat(count) { i ->
             val active = i == current
+            val dotSize by animateDpAsState(
+                targetValue = if (active) 8.dp else 6.dp,
+                animationSpec = tween(150),
+                label = "slideDotSize"
+            )
+            val dotColor by animateColorAsState(
+                targetValue = if (active) LimeSqueeze else GhostWhite.copy(alpha = 0.3f),
+                animationSpec = tween(150),
+                label = "slideDotColor"
+            )
             Box(
                 modifier = Modifier
-                    .size(if (active) 8.dp else 6.dp)
+                    .size(dotSize)
                     .background(
-                        if (active) LimeSqueeze else GhostWhite.copy(alpha = 0.3f),
+                        dotColor,
                         CircleShape
                     )
             )
@@ -237,10 +256,20 @@ fun HeaderAndDateStrip(currentPage: Int, today: Calendar) {
 
 @Composable
 fun DateItem(text: String, isActive: Boolean) {
+    val textColor by animateColorAsState(
+        targetValue = if (isActive) GhostWhite else GhostWhite.copy(alpha = 0.5f),
+        animationSpec = tween(150),
+        label = "dateTextColor"
+    )
+    val indicatorColor by animateColorAsState(
+        targetValue = if (isActive) LimeSqueeze else Color.Transparent,
+        animationSpec = tween(150),
+        label = "dateIndicatorColor"
+    )
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text(
             text = text,
-            color = if (isActive) GhostWhite else GhostWhite.copy(alpha = 0.5f),
+            color = textColor,
             fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal,
             style = MaterialTheme.typography.labelSmall
         )
@@ -249,7 +278,7 @@ fun DateItem(text: String, isActive: Boolean) {
             modifier = Modifier
                 .size(6.dp)
                 .background(
-                    if (isActive) LimeSqueeze else Color.Transparent,
+                    indicatorColor,
                     shape = CircleShape
                 )
         )

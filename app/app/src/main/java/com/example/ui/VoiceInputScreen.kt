@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -305,52 +306,65 @@ fun VoiceInputScreen(
             Spacer(modifier = Modifier.height(16.dp))
 
             // Status text
-            when {
-                !hasMicPermission -> {
-                    Text("IZINKAN AKSES MIKROFON", style = MaterialTheme.typography.displayLarge.copy(fontSize = 28.sp), color = SunsetOrange, textAlign = TextAlign.Center)
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text("Ketuk tombol di bawah untuk mengizinkan.", style = MaterialTheme.typography.bodyLarge, color = GhostWhite.copy(alpha = 0.7f), textAlign = TextAlign.Center)
-                }
-                isRecording -> {
-                    Text("MEREKAM...", style = MaterialTheme.typography.displayLarge.copy(fontSize = 48.sp), color = LimeSqueeze, textAlign = TextAlign.Center)
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text("Bicara dengan jelas. Perekaman akan berhenti otomatis dalam 7 detik.", style = MaterialTheme.typography.bodyLarge, color = GhostWhite.copy(alpha = 0.7f), textAlign = TextAlign.Center, modifier = Modifier.padding(horizontal = 32.dp))
-                }
-                isProcessing -> {
-                    CircularProgressIndicator(color = LimeSqueeze, modifier = Modifier.size(48.dp))
-                    Spacer(modifier = Modifier.height(16.dp))
-                    
-                    val title = when (processingStage) {
-                        "whisper" -> "MENTRANSKRIPSI..."
-                        "nim" -> "MENGANALISIS AI..."
-                        "success" -> "SUKSES!"
-                        else -> "MEMPROSES..."
+            Crossfade(
+                targetState = when {
+                    !hasMicPermission -> 0
+                    isRecording -> 1
+                    isProcessing -> 2
+                    error != null -> 3
+                    transcription != null -> 4
+                    else -> 5
+                },
+                animationSpec = tween(150),
+                label = "voiceStatus"
+            ) { status ->
+                when (status) {
+                    0 -> {
+                        Text("IZINKAN AKSES MIKROFON", style = MaterialTheme.typography.displayLarge.copy(fontSize = 28.sp), color = SunsetOrange, textAlign = TextAlign.Center)
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text("Ketuk tombol di bawah untuk mengizinkan.", style = MaterialTheme.typography.bodyLarge, color = GhostWhite.copy(alpha = 0.7f), textAlign = TextAlign.Center)
                     }
-                    val subtitle = when (processingStage) {
-                        "whisper" -> "Mengonversi rekaman suara Anda menjadi teks..."
-                        "nim" -> "NVIDIA NIM sedang mengurai transaksi Anda..."
-                        "success" -> successDetails
-                        else -> "Mohon tunggu sebentar..."
+                    1 -> {
+                        Text("MEREKAM...", style = MaterialTheme.typography.displayLarge.copy(fontSize = 48.sp), color = LimeSqueeze, textAlign = TextAlign.Center)
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text("Bicara dengan jelas. Perekaman akan berhenti otomatis dalam 7 detik.", style = MaterialTheme.typography.bodyLarge, color = GhostWhite.copy(alpha = 0.7f), textAlign = TextAlign.Center, modifier = Modifier.padding(horizontal = 32.dp))
                     }
-                    
-                    Text(title, style = MaterialTheme.typography.headlineMedium, color = LimeSqueeze, textAlign = TextAlign.Center)
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(subtitle, style = MaterialTheme.typography.bodyLarge, color = GhostWhite.copy(alpha = 0.7f), textAlign = TextAlign.Center, modifier = Modifier.padding(horizontal = 24.dp))
-                }
-                error != null -> {
-                    Text("ERROR", style = MaterialTheme.typography.displayLarge.copy(fontSize = 40.sp), color = SunsetOrange, textAlign = TextAlign.Center)
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(error ?: "", style = MaterialTheme.typography.bodyLarge, color = GhostWhite.copy(alpha = 0.7f), textAlign = TextAlign.Center, modifier = Modifier.padding(horizontal = 32.dp))
-                }
-                transcription != null -> {
-                    Text("TERDETEKSI", style = MaterialTheme.typography.headlineMedium, color = LimeSqueeze, textAlign = TextAlign.Center)
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text("\"$transcription\"", style = MaterialTheme.typography.displayLarge.copy(fontSize = 32.sp), color = GhostWhite, textAlign = TextAlign.Center, modifier = Modifier.padding(horizontal = 24.dp))
-                }
-                else -> {
-                    Text("SIAP", style = MaterialTheme.typography.displayLarge.copy(fontSize = 48.sp), color = GhostWhite, textAlign = TextAlign.Center)
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text("Mulai bicara, perekaman otomatis berjalan.", style = MaterialTheme.typography.bodyLarge, color = GhostWhite.copy(alpha = 0.7f), textAlign = TextAlign.Center)
+                    2 -> {
+                        CircularProgressIndicator(color = LimeSqueeze, modifier = Modifier.size(48.dp))
+                        Spacer(modifier = Modifier.height(16.dp))
+                        
+                        val title = when (processingStage) {
+                            "whisper" -> "MENTRANSKRIPSI..."
+                            "nim" -> "MENGANALISIS AI..."
+                            "success" -> "SUKSES!"
+                            else -> "MEMPROSES..."
+                        }
+                        val subtitle = when (processingStage) {
+                            "whisper" -> "Mengonversi rekaman suara Anda menjadi teks..."
+                            "nim" -> "NVIDIA NIM sedang mengurai transaksi Anda..."
+                            "success" -> successDetails
+                            else -> "Mohon tunggu sebentar..."
+                        }
+                        
+                        Text(title, style = MaterialTheme.typography.headlineMedium, color = LimeSqueeze, textAlign = TextAlign.Center)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(subtitle, style = MaterialTheme.typography.bodyLarge, color = GhostWhite.copy(alpha = 0.7f), textAlign = TextAlign.Center, modifier = Modifier.padding(horizontal = 24.dp))
+                    }
+                    3 -> {
+                        Text("ERROR", style = MaterialTheme.typography.displayLarge.copy(fontSize = 40.sp), color = SunsetOrange, textAlign = TextAlign.Center)
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(error ?: "", style = MaterialTheme.typography.bodyLarge, color = GhostWhite.copy(alpha = 0.7f), textAlign = TextAlign.Center, modifier = Modifier.padding(horizontal = 32.dp))
+                    }
+                    4 -> {
+                        Text("TERDETEKSI", style = MaterialTheme.typography.headlineMedium, color = LimeSqueeze, textAlign = TextAlign.Center)
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text("\"$transcription\"", style = MaterialTheme.typography.displayLarge.copy(fontSize = 32.sp), color = GhostWhite, textAlign = TextAlign.Center, modifier = Modifier.padding(horizontal = 24.dp))
+                    }
+                    5 -> {
+                        Text("SIAP", style = MaterialTheme.typography.displayLarge.copy(fontSize = 48.sp), color = GhostWhite, textAlign = TextAlign.Center)
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text("Mulai bicara, perekaman otomatis berjalan.", style = MaterialTheme.typography.bodyLarge, color = GhostWhite.copy(alpha = 0.7f), textAlign = TextAlign.Center)
+                    }
                 }
             }
 

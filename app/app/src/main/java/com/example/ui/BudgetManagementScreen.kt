@@ -1,5 +1,7 @@
 package com.example.ui
 
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -199,31 +201,42 @@ fun BudgetManagementScreen(
             Spacer(modifier = Modifier.height(12.dp))
 
             // Body
-            when {
-                uiState.isLoading -> {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        CircularProgressIndicator(color = LimeSqueeze)
-                    }
-                }
-                uiState.activeBudgets.isEmpty() -> {
-                    BudgetListEmptyState(onCreateBudget = { showCreateForm = true })
-                }
-                else -> {
-                    LazyColumn(
-                        modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        items(uiState.activeBudgets, key = { it.id }) { budget ->
-                            BudgetCard(
-                                budget = budget,
-                                onEdit = { viewModel.openEditDialog(budget) },
-                                onArchive = { viewModel.archiveBudget(budget) }
-                            )
+            Crossfade(
+                targetState = when {
+                    uiState.isLoading -> 0
+                    uiState.activeBudgets.isEmpty() -> 1
+                    else -> 2
+                },
+                modifier = Modifier.fillMaxWidth().weight(1f),
+                animationSpec = tween(150),
+                label = "budgetBody"
+            ) { bodyState ->
+                when (bodyState) {
+                    0 -> {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator(color = LimeSqueeze)
                         }
-                        item { Spacer(modifier = Modifier.height(80.dp)) }
+                    }
+                    1 -> {
+                        BudgetListEmptyState(onCreateBudget = { showCreateForm = true })
+                    }
+                    2 -> {
+                        LazyColumn(
+                            modifier = Modifier.fillMaxSize(),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            items(uiState.activeBudgets, key = { it.id }) { budget ->
+                                BudgetCard(
+                                    budget = budget,
+                                    onEdit = { viewModel.openEditDialog(budget) },
+                                    onArchive = { viewModel.archiveBudget(budget) }
+                                )
+                            }
+                            item { Spacer(modifier = Modifier.height(80.dp)) }
+                        }
                     }
                 }
             }

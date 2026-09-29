@@ -13,6 +13,8 @@ import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -144,8 +146,20 @@ fun ScanReceiptScreen(onClose: (ReceiptScanResult?) -> Unit) {
 
                     Spacer(modifier = Modifier.height(24.dp))
 
-                    when {
-                        isProcessing -> {
+                    Crossfade(
+                        targetState = when {
+                            isProcessing -> 0
+                            scanResult != null -> 1
+                            error != null -> 2
+                            else -> 3
+                        },
+                        modifier = Modifier.fillMaxWidth().weight(1f),
+                        animationSpec = tween(150),
+                        label = "receiptStatus"
+                    ) { status ->
+                        Column(modifier = Modifier.fillMaxSize()) {
+                            when (status) {
+                        0 -> {
                             Spacer(modifier = Modifier.weight(1f))
                             CircularProgressIndicator(color = LimeSqueeze, modifier = Modifier.size(64.dp))
                             Spacer(modifier = Modifier.height(24.dp))
@@ -155,7 +169,7 @@ fun ScanReceiptScreen(onClose: (ReceiptScanResult?) -> Unit) {
                             Spacer(modifier = Modifier.weight(1f))
                         }
 
-                        scanResult != null -> {
+                        1 -> {
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -201,7 +215,7 @@ fun ScanReceiptScreen(onClose: (ReceiptScanResult?) -> Unit) {
                             }
                         }
 
-                        error != null -> {
+                        2 -> {
                             Spacer(modifier = Modifier.weight(1f))
                             Icon(Icons.Default.Warning, contentDescription = null, tint = SunsetOrange, modifier = Modifier.size(64.dp))
                             Spacer(modifier = Modifier.height(16.dp))
@@ -246,6 +260,8 @@ fun ScanReceiptScreen(onClose: (ReceiptScanResult?) -> Unit) {
                                 }
                             }
                             Spacer(modifier = Modifier.weight(1f))
+                        }
+                    }
                         }
                     }
                 }
