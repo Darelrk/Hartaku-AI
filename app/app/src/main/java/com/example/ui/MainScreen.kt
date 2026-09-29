@@ -33,6 +33,8 @@ fun MainScreen() {
     var currentScreen by remember { mutableStateOf(ScreenRoute.HOME) }
     var voiceText by remember { mutableStateOf<String?>(null) }
     var receiptResult by remember { mutableStateOf<ReceiptScanResult?>(null) }
+    var pendingMessage by remember { mutableStateOf<String?>(null) }
+    val snackbarHostState = remember { SnackbarHostState() }
 
     Crossfade(
         targetState = currentScreen,
@@ -54,6 +56,7 @@ fun MainScreen() {
                     },
                     onDirectSave = { savedTxs ->
                         // Directly returned to home after successful background save
+                        pendingMessage = "${savedTxs.size} transaksi tersimpan"
                         voiceText = null
                         receiptResult = null
                         currentScreen = ScreenRoute.HOME
@@ -111,6 +114,7 @@ fun MainScreen() {
                     Scaffold(
                         modifier = Modifier.fillMaxSize(),
                         containerColor = MidnightAbyss,
+                        snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
                         bottomBar = {
                             BottomNavBar(
                                 currentTab = currentTab,
@@ -118,6 +122,11 @@ fun MainScreen() {
                             )
                         }
                     ) { innerPadding ->
+                        PendingSaveSnackbarEffect(
+                            pendingMessage = pendingMessage,
+                            snackbarHostState = snackbarHostState,
+                            onMessageConsumed = { pendingMessage = null }
+                        )
                         Box(modifier = Modifier.padding(innerPadding)) {
                             AnimatedContent(
                                 targetState = currentTab,
@@ -159,5 +168,17 @@ fun MainScreen() {
                 }
             }
         }
+    }
+}
+@Composable
+internal fun PendingSaveSnackbarEffect(
+    pendingMessage: String?,
+    snackbarHostState: SnackbarHostState,
+    onMessageConsumed: () -> Unit
+) {
+    LaunchedEffect(pendingMessage) {
+        val message = pendingMessage ?: return@LaunchedEffect
+        snackbarHostState.showSnackbar(message)
+        onMessageConsumed()
     }
 }
