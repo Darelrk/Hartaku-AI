@@ -67,6 +67,10 @@ fun ChartDashboardSlide(
     budgets: List<Budget> = emptyList(),
     dayOffset: Int = 0
 ) {
+    // Satu predikat untuk dua tempat: 14 bucket nol tetap dianggap "belum ada data",
+    // kalau tidak KPI row dan chart body bisa beda pendapat.
+    val hasNoChartData = twoWeek.daily.isEmpty() || twoWeek.daily.all { it.total == 0.0 }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -102,7 +106,7 @@ fun ChartDashboardSlide(
             Spacer(modifier = Modifier.height(18.dp))
 
             // KPI Row: 2 cards side-by-side
-            if (twoWeek.daily.isEmpty()) {
+            if (hasNoChartData) {
                 EmptyChartCard(text = "Belum ada data 14 hari")
             } else {
                 val kpiAccent1 = when {
@@ -271,7 +275,7 @@ fun ChartDashboardSlide(
                     }
                     Spacer(modifier = Modifier.height(14.dp))
 
-                    if (twoWeek.daily.isEmpty()) {
+                    if (hasNoChartData) {
                         Text(
                             text = "Belum ada data 14 hari",
                             style = MaterialTheme.typography.bodyMedium,

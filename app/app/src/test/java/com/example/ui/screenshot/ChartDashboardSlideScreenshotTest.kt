@@ -2,6 +2,8 @@ package com.example.ui.screenshot
 
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onRoot
 import com.example.data.DailyExpense
@@ -120,6 +122,54 @@ class ChartDashboardSlideScreenshotTest {
 
         val width = composeTestRule.onNodeWithTag("expenseBar-0").fetchSemanticsNode().boundsInRoot.width
         assertTrue("zero expense bars have no visible width", width == 0f)
+    }
+
+    @Test
+    fun allZeroBucketsShowEmptyStateInBothSections() {
+        val today = Calendar.getInstance().timeInMillis
+        val daily = (0..13).map { index ->
+            DailyExpense(today + index * 86_400_000L, 0.0)
+        }
+        composeTestRule.setContent {
+            MyApplicationTheme {
+                ChartDashboardSlide(
+                    twoWeek = TwoWeekExpense(daily, thisWeekTotal = 0.0, prevWeekTotal = 0.0)
+                )
+            }
+        }
+
+        assertTrue(
+            "all-zero buckets show the empty state in both sections",
+            composeTestRule.onAllNodesWithText("Belum ada data 14 hari").fetchSemanticsNodes().size == 2
+        )
+        assertTrue(
+            "all-zero buckets do not render chart bars",
+            composeTestRule.onAllNodesWithTag("expenseBar-0").fetchSemanticsNodes().isEmpty()
+        )
+    }
+
+    @Test
+    fun anyNonZeroBucketKeepsChartVisible() {
+        val today = Calendar.getInstance().timeInMillis
+        val daily = (0..13).map { index ->
+            DailyExpense(today + index * 86_400_000L, if (index == 13) 100.0 else 0.0)
+        }
+        composeTestRule.setContent {
+            MyApplicationTheme {
+                ChartDashboardSlide(
+                    twoWeek = TwoWeekExpense(daily, thisWeekTotal = 100.0, prevWeekTotal = 0.0)
+                )
+            }
+        }
+
+        assertTrue(
+            "a non-zero bucket hides the empty state",
+            composeTestRule.onAllNodesWithText("Belum ada data 14 hari").fetchSemanticsNodes().isEmpty()
+        )
+        assertTrue(
+            "a non-zero bucket renders the chart row",
+            composeTestRule.onAllNodesWithTag("expenseBar-13").fetchSemanticsNodes().isNotEmpty()
+        )
     }
 
     @Test
