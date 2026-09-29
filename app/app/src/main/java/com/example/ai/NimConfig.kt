@@ -9,10 +9,12 @@ import com.example.BuildConfig
 object NimConfig {
     private const val TAG = "NimConfig"
 
-    // nemotron-mini-4b-instruct sudah hilang dari katalog NIM (410 Gone). Diganti
-    // gpt-oss-20b — live di katalog NIM per 2026-09-28. Belum ter-benchmark live:
-    // key lokal belum punya scope "Public API Endpoints" (semua panggilan inference 403).
-    const val LLM_MODEL = "openai/gpt-oss-20b"
+    // openai/gpt-oss-20b tercantum di /v1/models tapi tidak pernah merespons:
+    // nol byte, tanpa status line HTTP, sampai 150 detik — bahkan untuk payload
+    // 4-token tanpa tools. Jadi masalahnya di sisi model, bukan harness.
+    // Ganti ke nvidia/nemotron-3.5-lightning-30b-a3b: terukur merespons ~1,9s
+    // dengan tools maupun tanpa tools, per 2026-09-29.
+    const val LLM_MODEL = "nvidia/nemotron-3.5-lightning-30b-a3b"
     const val BASE_URL = "https://integrate.api.nvidia.com/v1"
 
     // System prompts pindah ke masing-masing parser (dinamis dari DB)
