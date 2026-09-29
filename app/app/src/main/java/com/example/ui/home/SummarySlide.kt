@@ -58,70 +58,92 @@ fun SummarySlide(
             )
             Spacer(modifier = Modifier.height(16.dp))
 
-            // 3 summary cards: Masuk / Keluar / Saldo
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                SummaryCard(
-                    label = "MASUK",
-                    amount = totalIncome,
-                    accent = EmeraldSprint,
-                    modifier = Modifier.weight(1f)
-                )
-                SummaryCard(
-                    label = "KELUAR",
-                    amount = totalSpending,
-                    accent = SunsetOrange,
-                    modifier = Modifier.weight(1f)
-                )
-            }
-            Spacer(modifier = Modifier.height(12.dp))
-            BalanceCard(balance = balance, transactionCount = transactionCount, comparison = comparison)
-
-            Spacer(modifier = Modifier.height(20.dp))
-
-            // Top kategori (real breakdown)
-            if (categoryBreakdown.isNotEmpty()) {
-                Text(
-                    text = "TOP KATEGORI",
-                    style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 2.sp),
-                    color = GhostWhite.copy(alpha = 0.4f)
-                )
-                Spacer(modifier = Modifier.height(12.dp))
-                val total = categoryBreakdown.sumOf { it.total }.coerceAtLeast(1.0)
-                categoryBreakdown.take(4).forEach { cat ->
-                    TopCategoryBar(
-                        name = cat.name,
-                        amount = cat.total,
-                        fraction = (cat.total / total).toFloat()
-                    )
-                    Spacer(modifier = Modifier.height(10.dp))
-                }
-                Spacer(modifier = Modifier.height(10.dp))
-            }
-
-            // Quick insight (Lavender Mist accent)
-            if (insightText.isNotBlank()) {
-                Row(
+            if (transactionCount == 0) {
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(LavenderMist.copy(alpha = 0.1f), RoundedCornerShape(16.dp))
-                        .border(1.dp, LavenderMist.copy(alpha = 0.3f), RoundedCornerShape(16.dp))
-                        .padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                        .background(GhostWhite.copy(alpha = 0.05f), RoundedCornerShape(20.dp))
+                        .border(1.dp, GhostWhite.copy(alpha = 0.15f), RoundedCornerShape(20.dp))
+                        .padding(16.dp)
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(8.dp)
-                            .background(LavenderMist, CircleShape)
-                    )
-                    Spacer(modifier = Modifier.width(12.dp))
                     Text(
-                        text = insightText,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = GhostWhite.copy(alpha = 0.85f)
+                        text = "Belum ada transaksi pada tanggal ini",
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        color = GhostWhite
                     )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Catat lewat suara, kamera, atau tulis manual",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = GhostWhite.copy(alpha = 0.7f)
+                    )
+                }
+            } else {
+                // 3 summary cards: Masuk / Keluar / Saldo
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    SummaryCard(
+                        label = "MASUK",
+                        amount = totalIncome,
+                        accent = EmeraldSprint,
+                        modifier = Modifier.weight(1f)
+                    )
+                    SummaryCard(
+                        label = "KELUAR",
+                        amount = totalSpending,
+                        accent = SunsetOrange,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+                BalanceCard(balance = balance, transactionCount = transactionCount, comparison = comparison)
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                // Top kategori (real breakdown)
+                if (categoryBreakdown.isNotEmpty()) {
+                    Text(
+                        text = "TOP KATEGORI",
+                        style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 2.sp),
+                        color = GhostWhite.copy(alpha = 0.4f)
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    val total = categoryBreakdown.sumOf { it.total }.coerceAtLeast(1.0)
+                    categoryBreakdown.take(4).forEach { cat ->
+                        TopCategoryBar(
+                            name = cat.name,
+                            amount = cat.total,
+                            fraction = (cat.total / total).toFloat()
+                        )
+                        Spacer(modifier = Modifier.height(10.dp))
+                    }
+                    Spacer(modifier = Modifier.height(10.dp))
+                }
+
+                // Quick insight (Lavender Mist accent)
+                if (insightText.isNotBlank()) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(LavenderMist.copy(alpha = 0.1f), RoundedCornerShape(16.dp))
+                            .border(1.dp, LavenderMist.copy(alpha = 0.3f), RoundedCornerShape(16.dp))
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(8.dp)
+                                .background(LavenderMist, CircleShape)
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text(
+                            text = insightText,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = GhostWhite.copy(alpha = 0.85f)
+                        )
+                    }
                 }
             }
 
