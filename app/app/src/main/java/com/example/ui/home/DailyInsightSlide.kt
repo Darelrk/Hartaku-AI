@@ -20,12 +20,14 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.input.TextFieldValue
@@ -99,15 +101,24 @@ fun DailyInsightSlide(
                     )
                 } else {
                     val listState = rememberLazyListState()
-                    LaunchedEffect(chatHistory.size) {
-                        if (chatHistory.isNotEmpty()) {
-                            listState.animateScrollToItem(chatHistory.size - 1)
+                    val isNearBottom = remember(listState) {
+                        derivedStateOf {
+                            val layoutInfo = listState.layoutInfo
+                            val lastVisibleIndex = layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1
+                            layoutInfo.totalItemsCount == 0 ||
+                                lastVisibleIndex >= layoutInfo.totalItemsCount - 2
+                        }
+                    }
+                    LaunchedEffect(chatHistory.size, isChatLoading) {
+                        if (isNearBottom.value) {
+                            val targetIndex = if (isChatLoading) chatHistory.size else chatHistory.size - 1
+                            listState.animateScrollToItem(targetIndex)
                         }
                     }
 
                     LazyColumn(
                         state = listState,
-                        modifier = Modifier.fillMaxSize()
+                        modifier = Modifier.fillMaxSize().testTag("dailyInsightMessages")
                     ) {
                         itemsIndexed(
                             items = chatHistory,
@@ -194,25 +205,27 @@ fun DailyInsightSlide(
                     }
                 )
 
+                val canSend = inputText.text.isNotBlank() && !isChatLoading
                 IconButton(
                     onClick = {
-                        if (inputText.text.isNotBlank()) {
+                        if (canSend) {
                             onSendMessage(inputText.text)
                             inputText = TextFieldValue("")
                         }
                     },
+                    enabled = canSend,
                     modifier = Modifier.size(40.dp)
                 ) {
                     Icon(
                         Icons.Default.Send,
-                        contentDescription = "Send",
-                        tint = if (inputText.text.isNotBlank()) LavenderMist else GhostWhite.copy(alpha = 0.4f)
+                        contentDescription = "Kirim pesan",
+                        tint = if (canSend) LavenderMist else GhostWhite.copy(alpha = 0.4f)
                     )
-                }
                 }
             }
         }
     }
+}
 
 @Composable
 private fun ChatMessageBubble(message: ChatMessageItem, isUser: Boolean) {
