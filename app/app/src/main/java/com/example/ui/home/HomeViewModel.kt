@@ -46,7 +46,6 @@ data class DayUiState(
     val budgets: List<Budget> = emptyList(),
     val insightText: String = "",
     val insightSaran: String = "",
-    val twoWeekExpense: TwoWeekExpense = TwoWeekExpense(emptyList(), 0.0, 0.0, null, 0.0),
     val loading: Boolean = true
 ) {
     val balance: Double get() = totalIncome - totalSpending
@@ -74,6 +73,18 @@ class HomeViewModel(
 
     private val dayCache = mutableMapOf<Int, MutableStateFlow<DayUiState>>()
     private val exposedDayCache: MutableMap<Int, StateFlow<DayUiState>> = mutableMapOf()
+    private val chartNow = Calendar.getInstance()
+    private val chartStart = getStartOfDay(
+        (chartNow.clone() as Calendar).apply { add(Calendar.DAY_OF_YEAR, -13) }
+    )
+    private val chartEnd = getEndOfDay(chartNow)
+    private val emptyTwoWeek = TwoWeekExpense(emptyList(), 0.0, 0.0, null, 0.0)
+
+    val twoWeekExpense: StateFlow<TwoWeekExpense> = transactionRepo
+        .getTransactionsInRange(chartStart, chartEnd)
+        .map { txs -> buildTwoWeekExpense(txs, chartNow) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyTwoWeek)
+
     private val insightRequested = mutableSetOf<Int>()
     private var seeded = false
     // Chat state per day offset
@@ -176,31 +187,6 @@ class HomeViewModel(
             }
         }
 
-        loadTwoWeek(flow)
-    }
-
-    /**
-     * Chart 14 hari sebelumnya tidak pernah terisi: `DayUiState.twoWeekExpense`
-     * hanya punya nilai default dan tidak ada satu pun tempat yang mengisinya,
-     * sehingga slide itu selalu menampilkan "Belum ada data 14 hari" padahal
-     * datanya ada.
-     *
-     * Pengelompokan memakai batas hari lokal yang sama dengan [dayRange] supaya
-     * batarnya tidak bergeser sehari dari angka ringkasan, dan memakai interval
-     * half-open [start, end) seperti query DAO.
-     */
-    private fun loadTwoWeek(flow: MutableStateFlow<DayUiState>) {
-        val now = Calendar.getInstance()
-        val firstDay = now.clone() as Calendar
-        firstDay.add(Calendar.DAY_OF_YEAR, -13)
-        val rangeStart = getStartOfDay(firstDay)
-        val rangeEnd = getEndOfDay(now)
-
-        viewModelScope.launch {
-            transactionRepo.getTransactionsInRange(rangeStart, rangeEnd).collect { txs ->
-                flow.update { it.copy(twoWeekExpense = buildTwoWeekExpense(txs, now)) }
-            }
-        }
     }
 
 
@@ -379,13 +365,21 @@ class HomeViewModel(
                 c.add(Calendar.DAY_OF_YEAR, offset)
                 getStartOfDay(c)
             }
-            val expenses = txs.filter { it.type == TransactionType.EXPENSE }
-            val daily = dayStarts.mapIndexed { idx, dayStart ->
-                val endExclusive = dayStarts.getOrNull(idx + 1) ?: getEndOfDay(now)
-                val total = expenses
-                    .filter { it.timestamp >= dayStart && it.timestamp < endExclusive }
-                    .sumOf { it.amount }
-                DailyExpense(dayStart, total)
+            val dayTotals = DoubleArray(14)
+            val firstDayStart = dayStarts.first()
+            val endExclusive = getEndOfDay(now)
+            for (tx in txs) {
+                if (tx.type != TransactionType.EXPENSE ||
+                    tx.timestamp < firstDayStart ||
+                    tx.timestamp >= endExclusive
+                ) continue
+
+                val searchIndex = dayStarts.binarySearch(tx.timestamp)
+                val index = if (searchIndex >= 0) searchIndex else -searchIndex - 2
+                if (index in dayTotals.indices) dayTotals[index] += tx.amount
+            }
+            val daily = dayStarts.mapIndexed { index, dayStart ->
+                DailyExpense(dayStart, dayTotals[index])
             }
             val prevWeekTotal = daily.take(7).sumOf { it.total }
             val thisWeekTotal = daily.drop(7).sumOf { it.total }

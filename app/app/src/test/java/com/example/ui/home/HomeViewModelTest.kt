@@ -7,6 +7,7 @@ import com.example.ai.FakeChatClient
 import com.example.ai.LocalRuleBasedChat
 import com.example.data.*
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
@@ -71,6 +72,29 @@ class HomeViewModelTest {
         advanceUntilIdle()
 
         assertSame(day, viewModel.dayData(0))
+    }
+
+    @Test
+    fun twoWeekExpense_emitsLocalFourteenDayBuckets() = runTest {
+        val today = Calendar.getInstance().apply {
+            set(Calendar.HOUR_OF_DAY, 12)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }
+        fakeTransactionRepo.insertTransaction(Transaction(
+            id = 1,
+            amount = 15_000.0,
+            description = "Makan siang",
+            category = "Makanan",
+            type = TransactionType.EXPENSE,
+            timestamp = today.timeInMillis
+        ))
+
+        val result = viewModel.twoWeekExpense.first { it.daily.size == 14 }
+
+        assertEquals(14, result.daily.size)
+        assertEquals(15_000.0, result.daily.last().total, 0.001)
     }
 
     @Test

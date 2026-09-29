@@ -7,7 +7,6 @@ import com.example.data.TransactionType
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -16,12 +15,8 @@ import org.robolectric.RobolectricTestRunner
 import java.util.Calendar
 
 /**
- * Slide chart 14 hari sebelumnya tidak pernah menampilkan apa pun:
- * `DayUiState.twoWeekExpense` hanya punya nilai default dan tidak ada satu pun
- * tempat yang mengisinya, jadi UI selalu jatuh ke "Belum ada data 14 hari".
- *
- * Test ini menguji bucketing-nya langsung: 14 hari, batas half-open seperti DAO,
- * pemisahan minggu ini vs minggu lalu, dan penanganan pembagi nol.
+ * Tests bucketing into 14 local-day buckets, half-open boundaries, income
+ * exclusion, weekly totals, and zero-denominator handling.
  */
 @RunWith(RobolectricTestRunner::class)
 class TwoWeekExpenseTest {
@@ -118,10 +113,4 @@ class TwoWeekExpenseTest {
         assertEquals(10_000.0, result.avgDaily, 0.001)
     }
 
-    @Test
-    fun defaultStateIsEmptyButChartStillRendersFourteenDays() {
-        val state = com.example.ui.home.DayUiState()
-        assertNotNull(state.twoWeekExpense)
-        assertEquals(14, build(emptyList()).daily.size)
-    }
 }

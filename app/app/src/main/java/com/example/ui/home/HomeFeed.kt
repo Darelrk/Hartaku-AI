@@ -52,6 +52,7 @@ fun HomeFeed() {
     LaunchedEffect(Unit) { viewModel.ensureMockData() }
 
     val categories by viewModel.categories.collectAsState()
+    val twoWeek by viewModel.twoWeekExpense.collectAsState()
 
     Column(modifier = Modifier.fillMaxSize().background(MidnightAbyss)) {
         HeaderAndDateStrip(currentPage = dayPager.currentPage, today = today)
@@ -68,6 +69,7 @@ fun HomeFeed() {
                 dayPage = page,
                 dayPager = dayPager,
                 state = dayState,
+                twoWeek = twoWeek,
                 categories = categories,
                 onDelete = viewModel::deleteTransaction,
                 onUpdate = viewModel::updateTransaction,
@@ -88,6 +90,7 @@ private fun DaySlides(
     dayPage: Int,
     dayPager: PagerState,
     state: DayUiState,
+    twoWeek: TwoWeekExpense,
     categories: List<com.example.data.Category>,
     onDelete: (com.example.data.Transaction) -> Unit,
     onUpdate: (com.example.data.Transaction) -> Unit,
@@ -138,7 +141,7 @@ private fun DaySlides(
                     onUpdate = onUpdate
                 )
                 2 -> ChartDashboardSlide(
-                    twoWeek = state.twoWeekExpense,
+                    twoWeek = twoWeek,
                     budgets = state.budgets
                 )
                 3 -> DailyInsightSlide(
