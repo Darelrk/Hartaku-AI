@@ -2,7 +2,6 @@ package com.example.ui.home
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -18,21 +17,19 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.Category
 import com.example.data.Transaction
 import com.example.data.TransactionType
-import kotlin.math.roundToInt
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import com.example.ui.theme.*
 import com.example.RupiahFormatter
 import java.time.Instant
+import kotlinx.coroutines.launch
 
 /**
  * List transaksi hari itu + search bar + category chips + swipe-to-delete.
@@ -202,6 +199,7 @@ fun AdvancedTransactionListSlide(
                     items(filteredTransactions, key = { it.id }) { tx ->
                         SwipeableTransactionRow(
                             tx = tx,
+                            modifier = Modifier.animateItem(),
                             onEdit = { editingTx = tx },
                             onDelete = { pendingDelete = tx }
                         )
@@ -243,31 +241,69 @@ fun AdvancedTransactionListSlide(
         )
     }
 }
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SwipeableTransactionRow(
     tx: Transaction,
+    modifier: Modifier,
     onEdit: () -> Unit,
     onDelete: () -> Unit
 ) {
-    var offsetX by remember { mutableStateOf(0f) }
-    val swipeThreshold = 150f
+    val dismissState = rememberSwipeToDismissBoxState(
+        positionalThreshold = { distance -> distance * 0.35f }
+    )
+    val coroutineScope = rememberCoroutineScope()
+    LaunchedEffect(dismissState.currentValue) {
+        when (dismissState.currentValue) {
+            SwipeToDismissBoxValue.StartToEnd -> onEdit()
+            SwipeToDismissBoxValue.EndToStart -> onDelete()
+            SwipeToDismissBoxValue.Settled -> Unit
+        }
+        if (dismissState.currentValue != SwipeToDismissBoxValue.Settled) {
+            coroutineScope.launch { dismissState.reset() }
+        }
+    }
 
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .offset { IntOffset(offsetX.roundToInt(), 0) }
-            .pointerInput(Unit) {
-                detectHorizontalDragGestures(
-                    onDragEnd = {
-                        if (offsetX < -swipeThreshold) onDelete()
-                        else if (offsetX > swipeThreshold) onEdit()
-                        offsetX = 0f
-                    },
-                    onHorizontalDrag = { _, dragAmount -> offsetX = (offsetX + dragAmount).coerceIn(-300f, 300f) }
-                )
+    SwipeToDismissBox(
+        state = dismissState,
+        modifier = modifier.fillMaxWidth(),
+        enableDismissFromStartToEnd = true,
+        enableDismissFromEndToStart = true,
+        backgroundContent = {
+            val direction = dismissState.dismissDirection
+            val backgroundColor = when (direction) {
+                SwipeToDismissBoxValue.StartToEnd -> SkyboundBlue
+                SwipeToDismissBoxValue.EndToStart -> SunsetOrange
+                SwipeToDismissBoxValue.Settled -> Color.Transparent
             }
+            val alignment = when (direction) {
+                SwipeToDismissBoxValue.StartToEnd -> Alignment.CenterStart
+                SwipeToDismissBoxValue.EndToStart -> Alignment.CenterEnd
+                SwipeToDismissBoxValue.Settled -> Alignment.Center
+            }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(backgroundColor)
+                    .padding(horizontal = 16.dp),
+                contentAlignment = alignment
+            ) {
+                when (direction) {
+                    SwipeToDismissBoxValue.StartToEnd -> Icon(
+                        imageVector = Icons.Default.Edit,
+                        contentDescription = "Edit transaksi",
+                        tint = GhostWhite
+                    )
+                    SwipeToDismissBoxValue.EndToStart -> Icon(
+                        imageVector = Icons.Default.Delete,
+                        contentDescription = "Hapus transaksi",
+                        tint = GhostWhite
+                    )
+                    SwipeToDismissBoxValue.Settled -> Unit
+                }
+            }
+        }
     ) {
         Row(
             modifier = Modifier
