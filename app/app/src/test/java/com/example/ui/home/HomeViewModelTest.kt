@@ -12,6 +12,7 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
@@ -62,6 +63,14 @@ class HomeViewModelTest {
         val cats = viewModel.categories.value
         assertEquals(2, cats.size)
         assertTrue(cats.any { it.name == "Makanan" })
+    }
+
+    @Test
+    fun dayData_reusesStateFlowForSameOffset() = runTest {
+        val day = viewModel.dayData(0)
+        advanceUntilIdle()
+
+        assertSame(day, viewModel.dayData(0))
     }
 
     @Test

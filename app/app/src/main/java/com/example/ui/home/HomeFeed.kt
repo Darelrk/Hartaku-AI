@@ -18,10 +18,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -96,29 +96,24 @@ private fun DaySlides(
     onSendMessage: (String) -> Unit = {},
 ) {
     val slidePager = rememberPagerState(initialPage = 0, pageCount = { SLIDE_COUNT })
-
+    val parallaxPx = with(LocalDensity.current) { 12.dp.toPx() }
     VerticalPager(
         state = slidePager,
         modifier = Modifier.fillMaxSize()
     ) { slide ->
         // Animasi TikTok: gabungan offset vertikal (slide) + horizontal (hari).
-        val slideOffset = (slidePager.currentPage - slide) + slidePager.currentPageOffsetFraction
-        val dayOffset = (dayPager.currentPage - dayPage) + dayPager.currentPageOffsetFraction
-        val distance = (slideOffset.absoluteValue + dayOffset.absoluteValue).coerceIn(0f, 1f)
-
-        val scale = lerp(1f, 0.86f, distance)
-        val fade = lerp(1f, 0.4f, distance)
-        val parallax = slideOffset * 40f
-
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .graphicsLayer {
-                    scaleX = scale
-                    scaleY = scale
-                    translationY = parallax
+                    val slideOffset = (slidePager.currentPage - slide) + slidePager.currentPageOffsetFraction
+                    val dayOffset = (dayPager.currentPage - dayPage) + dayPager.currentPageOffsetFraction
+                    val distance = (slideOffset.absoluteValue + dayOffset.absoluteValue).coerceIn(0f, 1f)
+                    scaleX = lerp(1f, 0.98f, distance)
+                    scaleY = scaleX
+                    alpha = lerp(1f, 0.85f, distance)
+                    translationY = slideOffset * parallaxPx
                 }
-                .alpha(fade)
         ) {
             if (state.loading) {
                 // DayUiState default-nya nol, jadi tanpa gerbang ini semua slide

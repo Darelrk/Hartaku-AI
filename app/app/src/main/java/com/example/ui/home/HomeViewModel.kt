@@ -73,6 +73,7 @@ class HomeViewModel(
 ) : ViewModel() {
 
     private val dayCache = mutableMapOf<Int, MutableStateFlow<DayUiState>>()
+    private val exposedDayCache: MutableMap<Int, StateFlow<DayUiState>> = mutableMapOf()
     private val insightRequested = mutableSetOf<Int>()
     private var seeded = false
     // Chat state per day offset
@@ -118,10 +119,11 @@ class HomeViewModel(
         }
     }
 
-    fun dayData(offset: Int): StateFlow<DayUiState> =
+    fun dayData(offset: Int): StateFlow<DayUiState> = exposedDayCache.getOrPut(offset) {
         dayCache.getOrPut(offset) {
             MutableStateFlow(DayUiState(dayOffset = offset)).also { loadDay(offset, it) }
         }.asStateFlow()
+    }
 
     private fun loadDay(offset: Int, flow: MutableStateFlow<DayUiState>) {
         val (start, end) = dayRange(offset)
