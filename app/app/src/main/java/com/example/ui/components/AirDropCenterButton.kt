@@ -2,7 +2,6 @@ package com.example.ui.components
 
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -17,7 +16,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -85,34 +84,6 @@ fun AirDropCenterButton(
                 )
             }
 
-            // Pulse ring animation
-            val infiniteTransition = rememberInfiniteTransition()
-            val pulseScale by infiniteTransition.animateFloat(
-                initialValue = 1f,
-                targetValue = 1.4f,
-                animationSpec = infiniteRepeatable(
-                    animation = tween(1500, easing = FastOutSlowInEasing),
-                    repeatMode = RepeatMode.Restart
-                )
-            )
-            val pulseAlpha by infiniteTransition.animateFloat(
-                initialValue = 0.4f,
-                targetValue = 0f,
-                animationSpec = infiniteRepeatable(
-                    animation = tween(1500, easing = FastOutSlowInEasing),
-                    repeatMode = RepeatMode.Restart
-                )
-            )
-
-            // Pulse ring (outer expanding circle)
-            Box(
-                modifier = Modifier
-                    .size(64.dp)
-                    .scale(pulseScale)
-                    .alpha(pulseAlpha)
-                    .border(2.dp, LimeSqueeze.copy(alpha = 0.3f), CircleShape)
-            )
-
             // Main FAB — gradient Lime → Emerald
             Box(
                 modifier = Modifier
@@ -132,7 +103,7 @@ fun AirDropCenterButton(
                     tint = MidnightAbyss,
                     modifier = Modifier
                         .size(32.dp)
-                        .scale(1f + (rotation.value / 45f)*0.2f)
+                        .rotate(rotation.value)
                 )
             }
         }
