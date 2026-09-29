@@ -75,6 +75,27 @@ class HomeViewModelTest {
     }
 
     @Test
+    fun dayData_doesNotRepeatChartRangeQueryAcrossOffsets() = runTest {
+        val minChartRangeMillis = 13L * 24 * 60 * 60 * 1_000
+        val maxChartRangeMillis = 15L * 24 * 60 * 60 * 1_000
+        fun chartRangeQueryCount() = fakeTransactionRepo.transactionRangeCalls.count { (start, end) ->
+            end - start in minChartRangeMillis..maxChartRangeMillis
+        }
+
+        val chartRangeQueriesBefore = chartRangeQueryCount()
+        assertEquals("ViewModel harus membuka satu query chart bersama", 1, chartRangeQueriesBefore)
+
+        for (offset in -2..2) viewModel.dayData(offset)
+        advanceUntilIdle()
+
+        assertEquals(
+            "memuat beberapa hari tidak boleh menambah query chart 14 hari",
+            chartRangeQueriesBefore,
+            chartRangeQueryCount()
+        )
+    }
+
+    @Test
     fun twoWeekExpense_emitsLocalFourteenDayBuckets() = runTest {
         val today = Calendar.getInstance().apply {
             set(Calendar.HOUR_OF_DAY, 12)

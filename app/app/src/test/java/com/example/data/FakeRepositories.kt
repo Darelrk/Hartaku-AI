@@ -6,6 +6,7 @@ import kotlinx.coroutines.flow.map
 
 class FakeTransactionRepository : TransactionRepository(StubTransactionDao()) {
     val transactions = MutableStateFlow<List<Transaction>>(emptyList())
+    val transactionRangeCalls = mutableListOf<Pair<Long, Long>>()
 
     override fun getAllTransactions(): Flow<List<Transaction>> = transactions
 
@@ -111,6 +112,7 @@ class FakeTransactionRepository : TransactionRepository(StubTransactionDao()) {
     }
 
     override fun getTransactionsInRange(startDay: Long, endDay: Long): Flow<List<Transaction>> {
+        transactionRangeCalls += startDay to endDay
         return transactions.map { list ->
             list.filter { it.timestamp in startDay until endDay }
         }
