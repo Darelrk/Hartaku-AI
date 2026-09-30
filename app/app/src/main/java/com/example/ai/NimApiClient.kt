@@ -42,7 +42,12 @@ class NimApiClient(
     private val apiKey: String,
     private val client: OkHttpClient = OkHttpClient.Builder()
         .connectTimeout(30, TimeUnit.SECONDS)
-        .readTimeout(60, TimeUnit.SECONDS)
+        // Hosted NIM dari jaringan ini sangat tidak stabil: pengukuran berulang
+        // (2026-09-30) menunjukkan banyak request timeout 60-75 detik, sisanya
+        // 26-63 detik. Dengan 60s x 3 percobaan, satu simpan tertahan 3 menit
+        // tanpa umpan balik. Fallback regex sudah menangani kasus umum dan benar,
+        // jadi lebih baik gagal cepat lalu turun ke sana.
+        .readTimeout(20, TimeUnit.SECONDS)
         .writeTimeout(30, TimeUnit.SECONDS)
         .build()
 ) : ChatClient {
@@ -57,7 +62,10 @@ class NimApiClient(
         temperature: Double
     ): Result<ChatResponse> {
         var lastResult: Result<ChatResponse>? = null
-        val maxAttempts = 3
+        // 1 percobaan saja: lihat catatan readTimeout di atas. Percobaan ulang
+        // hanya memperpanjang rasa "hang", bukan meningkatkan فرصة berhasil
+        // pada provider yang sedang lambat.
+        val maxAttempts = 1
         for (attempt in 1..maxAttempts) {
             val result = chatSingleAttempt(model, systemPrompt, userMessage, maxTokens, temperature)
             lastResult = result
@@ -131,6 +139,12 @@ class NimApiClient(
             put("temperature", temperature)
             put("max_tokens", maxTokens)
             put("stream", true)
+            // Model ini menaruh fase thinking di dalam `content` (bukan
+            // `reasoning_content`), jadi seluruh max_tokens habis dipakai berpikir dan
+            // stream berakhir `finish_reason: length` tanpa jawaban. Diukur: 5.732 ms
+            // + JSON tidak valid → 1.895 ms + JSON valid. Tanpa flag ini, `enable_thinking`
+            // dan `extra_body` ditolak 400; hanya `chat_template_kwargs` yang diterima.
+            put("chat_template_kwargs", JSONObject().put("enable_thinking", false))
             put("messages", JSONArray().apply {
                 put(JSONObject().apply {
                     put("role", "system")
@@ -196,6 +210,7 @@ class NimApiClient(
             put("temperature", temperature)
             put("max_tokens", maxTokens)
             put("stream", true)
+            put("chat_template_kwargs", JSONObject().put("enable_thinking", false))
             // Tanpa ini server tidak mengirim chunk `usage`, sehingga kolom token
             // di Diagnostics selalu kosong pada jalur produksi yang streaming.
             put("stream_options", JSONObject().put("include_usage", true))
@@ -354,6 +369,7 @@ class NimApiClient(
                 put("temperature", temperature)
                 put("max_tokens", maxTokens)
                 put("stream", false)
+                put("chat_template_kwargs", JSONObject().put("enable_thinking", false))
                 put("tools", toJsonValue(tools))
                 put("messages", JSONArray().apply {
                     // System prompt first
@@ -449,6 +465,7 @@ class NimApiClient(
                 put("temperature", temperature)
                 put("max_tokens", maxTokens)
                 put("stream", false)
+                put("chat_template_kwargs", JSONObject().put("enable_thinking", false))
                 put("messages", JSONArray().apply {
                     put(JSONObject().apply {
                         put("role", "system")

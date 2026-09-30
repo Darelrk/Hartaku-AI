@@ -19,58 +19,41 @@ import org.robolectric.RobolectricTestRunner
 @RunWith(RobolectricTestRunner::class)
 class NimApiClientTest {
 
+    /**
+     * Kontrak: gagal cepat, tanpa percobaan ulang.
+     *
+     * Diukur 2026-09-30: hosted NIM dari jaringan ini gagal karena
+     * SLOW (26-75 detik), bukan karena error transient. Dengan readTimeout 20s,
+     * percobaan ulang hanya menambah waktu tunggu tanpa menambah peluang
+     * berhasil. `maxAttempts = 1` supaya parser turun ke fallback regex
+     * (yang sudah benar) alih-alih menahan tombol Simpan puluhan detik.
+     */
     @Test
-    fun testChat_RetryOnInvalidJsonAndSuccessOnThirdAttempt() = runTest {
+    fun testChat_NoRetryOnInvalidJson_FailsAfterSingleAttempt() = runTest {
         var attemptCount = 0
         val interceptor = Interceptor { chain ->
             attemptCount++
-            val responseBody = when (attemptCount) {
-                1 -> "This is not valid JSON at all"
-                2 -> "{\"choices\": [{\"message\": {\"content\": \"broken JSON: {\"}}]}" // Still invalid/broken
-                else -> """
-                    {
-                      "choices": [
-                        {
-                          "message": {
-                            "content": "[{\"type\": \"expense\", \"category\": \"Makanan\", \"amount\": 15000, \"description\": \"Kopi\"}]"
-                          },
-                          "finish_reason": "stop"
-                        }
-                      ],
-                      "usage": {
-                        "prompt_tokens": 100,
-                        "completion_tokens": 30
-                      }
-                    }
-                """.trimIndent()
-            }
             Response.Builder()
                 .request(chain.request())
                 .protocol(Protocol.HTTP_1_1)
                 .code(200)
                 .message("OK")
-                .body(responseBody.toResponseBody("application/json".toMediaType()))
+                .body("This is not valid JSON at all".toResponseBody("application/json".toMediaType()))
                 .build()
         }
 
-        val testClient = OkHttpClient.Builder()
-            .addInterceptor(interceptor)
-            .build()
-
-        val nimApiClient = NimApiClient("dummy-key", testClient)
-        val result = nimApiClient.chat(
-            systemPrompt = "system",
-            userMessage = "user"
+        val nimApiClient = NimApiClient(
+            "dummy-key",
+            OkHttpClient.Builder().addInterceptor(interceptor).build()
         )
+        val result = nimApiClient.chat(systemPrompt = "system", userMessage = "user")
 
-        assertTrue(result.isSuccess)
-        assertEquals(3, attemptCount)
-        val response = result.getOrThrow()
-        assertTrue(response.content.contains("Kopi"))
+        assertFalse(result.isSuccess)
+        assertEquals(1, attemptCount)
     }
 
     @Test
-    fun testChat_MaxRetriesExceededFailure() = runTest {
+    fun testChat_NoRetryOnServerError_FailsAfterSingleAttempt() = runTest {
         var attemptCount = 0
         val interceptor = Interceptor { chain ->
             attemptCount++
@@ -83,17 +66,52 @@ class NimApiClientTest {
                 .build()
         }
 
-        val testClient = OkHttpClient.Builder()
-            .addInterceptor(interceptor)
-            .build()
-
-        val nimApiClient = NimApiClient("dummy-key", testClient)
-        val result = nimApiClient.chat(
-            systemPrompt = "system",
-            userMessage = "user"
+        val nimApiClient = NimApiClient(
+            "dummy-key",
+            OkHttpClient.Builder().addInterceptor(interceptor).build()
         )
+        val result = nimApiClient.chat(systemPrompt = "system", userMessage = "user")
 
         assertFalse(result.isSuccess)
-        assertEquals(3, attemptCount) // 1 initial + 2 retries
+        assertEquals(1, attemptCount)
+    }
+
+    /** Jalur sukses langsung di percobaan pertama, tanpa retry. */
+    @Test
+    fun testChat_SucceedsOnFirstAttempt_WithoutRetrying() = runTest {
+        var attemptCount = 0
+        val interceptor = Interceptor { chain ->
+            attemptCount++
+            val body = """
+                {
+                  "choices": [
+                    {
+                      "message": {
+                        "content": "[{\"type\": \"income\", \"category\": \"Gaji\", \"amount\": 5000000, \"description\": \"Gaji bulan ini\"}]"
+                      },
+                      "finish_reason": "stop"
+                    }
+                  ],
+                  "usage": { "prompt_tokens": 100, "completion_tokens": 30 }
+                }
+            """.trimIndent()
+            Response.Builder()
+                .request(chain.request())
+                .protocol(Protocol.HTTP_1_1)
+                .code(200)
+                .message("OK")
+                .body(body.toResponseBody("application/json".toMediaType()))
+                .build()
+        }
+
+        val nimApiClient = NimApiClient(
+            "dummy-key",
+            OkHttpClient.Builder().addInterceptor(interceptor).build()
+        )
+        val result = nimApiClient.chat(systemPrompt = "system", userMessage = "user")
+
+        assertTrue(result.isSuccess)
+        assertEquals(1, attemptCount)
+        assertTrue(result.getOrThrow().content.contains("Gaji"))
     }
 }
