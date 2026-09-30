@@ -17,6 +17,7 @@ import com.example.data.Transaction
 import com.example.data.TransactionType
 import com.example.ui.DynamicCategoryChip
 import com.example.ui.colorFromHex
+import com.example.ui.components.TypeToggleChip
 import com.example.ui.iconFromString
 import com.example.ui.theme.*
 
@@ -201,33 +202,6 @@ fun EditTransactionSheet(
             ) {
                 Text("Batal", color = GhostWhite.copy(alpha = 0.6f))
             }
-        }
-    }
-}
-
-@Composable
-private fun TypeToggleChip(
-    label: String,
-    selected: Boolean,
-    activeColor: androidx.compose.ui.graphics.Color,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val container = if (selected) activeColor.copy(alpha = 0.2f) else GhostWhite.copy(alpha = 0.05f)
-    val content = if (selected) activeColor else GhostWhite.copy(alpha = 0.5f)
-    Surface(
-        onClick = onClick,
-        modifier = modifier.height(48.dp),
-        shape = RoundedCornerShape(16.dp),
-        color = container,
-        border = BorderStroke(1.dp, if (selected) activeColor else GhostWhite.copy(alpha = 0.15f))
-    ) {
-        Box(contentAlignment = Alignment.Center) {
-            Text(
-                text = label,
-                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
-                color = content
-            )
         }
     }
 }

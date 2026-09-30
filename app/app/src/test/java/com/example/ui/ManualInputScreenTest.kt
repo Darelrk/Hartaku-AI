@@ -94,21 +94,22 @@ class ManualInputScreenTest {
     @Test
     fun testTextInput_updatesViewModelState() {
         setScreen()
-        // ManualInputScreen shows a TextField with placeholder + category chips + save button.
-        composeTestRule.onNodeWithText("Kategori").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Simpan").assertIsDisplayed()
-        // Default placeholder visible
+        // TextField + type toggle + category chips + save button. Blok "Tipe"
+        // menambah tinggi konten, jadi node di bawah lipatan harus di-scroll dulu.
+        composeTestRule.onNodeWithText("Kategori").performScrollTo().assertIsDisplayed()
+        composeTestRule.onNodeWithText("Simpan").performScrollTo().assertIsDisplayed()
+        // Default placeholder mengikuti InputMode.EXPENSE
         composeTestRule.onNodeWithText(
-            "Contoh: tadi makan nasi goreng 15 ribu",
+            "Contoh: cth: makan bakso 15rb",
             substring = true
-        ).assertIsDisplayed()
+        ).performScrollTo().assertIsDisplayed()
     }
 
     @Test
     fun testCategoryChipSelection_updatesViewModelState() = kotlinx.coroutines.test.runTest {
         setScreen()
         // Tap "Makanan" category chip
-        composeTestRule.onNodeWithText("Makanan").performClick()
+        composeTestRule.onNodeWithText("Makanan").performScrollTo().performClick()
         composeTestRule.waitForIdle()
         assertEquals("Makanan", viewModel.uiState.value.selectedCategory?.name)
     }
@@ -117,22 +118,38 @@ class ManualInputScreenTest {
     fun testSaveButton_disabledWhenTextBlank() {
         setScreen()
         // No text typed yet — Simpan button should exist but be disabled
-        composeTestRule.onNodeWithText("Simpan").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Simpan").performScrollTo().assertIsDisplayed()
         // Placeholder still showing — text is empty
         composeTestRule.onNodeWithText(
-            "Contoh: tadi makan nasi goreng 15 ribu",
+            "Contoh: cth: makan bakso 15rb",
             substring = true
-        ).assertIsDisplayed()
+        ).performScrollTo().assertIsDisplayed()
     }
 
     @Test
     fun testCategoryChips_renderedFromRepo() {
         setScreen()
         // Default mode = EXPENSE → only Expense categories shown (Makanan, Transport).
-        // INCOME category "Gaji" hidden until user switches to PEMASUKAN mode.
-        composeTestRule.onNodeWithText("Makanan").assertIsDisplayed()
+        // INCOME category "Gaji" hidden sampai user pindah ke mode PEMASUKAN.
+        composeTestRule.onNodeWithText("Makanan").performScrollTo().assertIsDisplayed()
         composeTestRule.onNodeWithText("Transport").assertIsDisplayed()
         composeTestRule.onNodeWithText("Gaji").assertDoesNotExist()
+    }
+
+    @Test
+    fun testTypeToggle_switchesToIncomeAndSwapsCategories() {
+        setScreen()
+        composeTestRule.onNodeWithText("Pemasukan").performScrollTo().performClick()
+        composeTestRule.waitForIdle()
+
+        assertEquals(InputMode.INCOME, viewModel.uiState.value.inputMode)
+        composeTestRule.onNodeWithText("Gaji").performScrollTo().assertIsDisplayed()
+        composeTestRule.onNodeWithText("Makanan").assertDoesNotExist()
+        // Placeholder ikut mode INCOME
+        composeTestRule.onNodeWithText(
+            "Contoh: cth: gaji 5 juta",
+            substring = true
+        ).assertIsDisplayed()
     }
     @Test
     fun testDefaultPengeluaranMode_doesNotShowAllocation() {

@@ -4,6 +4,7 @@ import com.example.ai.ChatResponse
 import com.example.MainDispatcherRule
 import com.example.ai.FakeChatClient
 import com.example.ai.TransactionAiParser
+import com.example.ai.InputMode
 import com.example.data.*
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -100,7 +101,7 @@ class ManualInputViewModelTest {
         val tx = txs[0]
         assertEquals(20000.0, tx.amount, 0.1)
         assertEquals("kopi", tx.description) // Best practice: "k" multiplier di-strip dari description
-        assertEquals("Lainnya", tx.category) // Default to "Lainnya" since local alias matching is removed
+        assertEquals("Makanan", tx.category) // "kopi" adalah alias kategori Makanan
         assertEquals(TransactionType.EXPENSE, tx.type)
     }
 
@@ -180,5 +181,44 @@ class ManualInputViewModelTest {
         val tx = txs[0]
         // Case 1: No manual selection, AI returned "Transport". AI Classified Category name match should override alias match.
         assertEquals("Transport", tx.category)
+    }
+
+    @Test
+    fun testSetInputMode_income_loadsIncomeCategories() = runTest {
+        viewModel.setInputMode(InputMode.INCOME)
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertEquals(InputMode.INCOME, state.inputMode)
+        assertTrue(state.categories.any { it.name == "Gaji" })
+        assertTrue(state.categories.none { it.name == "Makanan" })
+    }
+
+    @Test
+    fun testSetInputMode_switchingClearsSelectedCategory() = runTest {
+        viewModel.selectCategory(sampleCategories[0]) // Makanan
+        assertEquals("Makanan", viewModel.uiState.value.selectedCategory?.name)
+
+        viewModel.setInputMode(InputMode.INCOME)
+
+        assertNull(viewModel.uiState.value.selectedCategory)
+    }
+
+    @Test
+    fun testSaveTransaction_billModeWithoutBills_doesNotReportSuccess() = runTest {
+        // Paksa parser jatuh ke jalur regex: jalur itu tidak pernah menghasilkan
+        // bill, jadi mode BILL tidak punya apa pun untuk disimpan.
+        fakeChatClient.responseToReturn = Result.failure(Exception("AI Offline"))
+
+        viewModel.setInputMode(InputMode.BILL)
+        viewModel.updateText("listrik 200rb setiap tanggal 5")
+        viewModel.saveTransaction()
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertNotNull(state.error)
+        assertTrue(state.error!!.contains("Mode Tagihan"))
+        assertTrue(!state.isSaved)
+        assertTrue(fakeTransactionRepo.transactions.value.isEmpty())
     }
 }

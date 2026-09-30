@@ -22,6 +22,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.ai.InputMode
+import com.example.ui.components.TypeToggleChip
 import com.example.data.Category
 import com.example.data.ReceiptScanResult
 import com.example.ui.theme.*
@@ -152,7 +154,7 @@ fun ManualInputScreen(
             ) {
                 if (state.text.isEmpty()) {
                     Text(
-                        text = "Contoh: tadi makan nasi goreng 15 ribu",
+                        text = "Contoh: " + state.inputMode.descriptionLabel,
                         style = MaterialTheme.typography.bodyLarge,
                         color = GhostWhite.copy(alpha = 0.3f)
                     )
@@ -171,6 +173,40 @@ fun ManualInputScreen(
                         unfocusedIndicatorColor = Color.Transparent
                     ),
                     textStyle = MaterialTheme.typography.bodyLarge
+                )
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            // Tipe transaksi menentukan kategori mana yang relevan
+            Text(
+                text = "Tipe",
+                style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 2.sp),
+                color = GhostWhite.copy(alpha = 0.6f)
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                TypeToggleChip(
+                    label = InputMode.EXPENSE.displayName,
+                    selected = state.inputMode == InputMode.EXPENSE,
+                    activeColor = SunsetOrange,
+                    onClick = { viewModel.setInputMode(InputMode.EXPENSE) },
+                    modifier = Modifier.weight(1f)
+                )
+                TypeToggleChip(
+                    label = InputMode.INCOME.displayName,
+                    selected = state.inputMode == InputMode.INCOME,
+                    activeColor = EmeraldSprint,
+                    onClick = { viewModel.setInputMode(InputMode.INCOME) },
+                    modifier = Modifier.weight(1f)
+                )
+                TypeToggleChip(
+                    label = InputMode.BILL.displayName,
+                    selected = state.inputMode == InputMode.BILL,
+                    activeColor = SkyboundBlue,
+                    onClick = { viewModel.setInputMode(InputMode.BILL) },
+                    modifier = Modifier.weight(1f)
                 )
             }
 

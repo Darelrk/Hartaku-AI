@@ -121,7 +121,7 @@ class ManualInputViewModel(
                     result.transactions.forEach { parsed ->
                         val isIncomeType = parsed.type == "income"
                         val typeClass = if (isIncomeType) "INCOME" else "EXPENSE"
-                        val matchedCat = state.selectedCategory
+                        val matchedCat = state.selectedCategory?.takeIf { it.typeClass == typeClass }
                             ?: if (parsed.category.isNotBlank()) categoryRepo.getOrCreateByName(parsed.category, typeClass) else allCategories.find { it.slug == "lainnya" }
 
                         val tx = Transaction(
@@ -164,7 +164,8 @@ class ManualInputViewModel(
                     parseSource = "regex"
                     val amount = extractAmount(state.text)
                     val desc = extractDescription(state.text)
-                    val matchedCat = state.selectedCategory
+                    val wanted = if (mode == InputMode.INCOME) "INCOME" else "EXPENSE"
+                    val matchedCat = state.selectedCategory?.takeIf { it.typeClass == wanted }
                         ?: if (mode == InputMode.INCOME) allCategories.find { it.typeClass == "INCOME" } ?: allCategories.find { it.slug == "lainnya" }
                            else allCategories.find { it.slug == "lainnya" }
 
@@ -200,6 +201,18 @@ class ManualInputViewModel(
                     return@launch
                 }
 
+
+                // Tanpa parser AI, mode BILL tidak pernah mengisi billsToSave
+                // maupun txsToSave. Menolak di sini mencegah "tersimpan" palsu.
+                if (mode == InputMode.BILL && billsToSave.isEmpty()) {
+                    _uiState.update {
+                        it.copy(
+                            isProcessing = false,
+                            error = "Mode Tagihan butuh parser AI. Ganti mode ke Pengeluaran atau Pemasukan."
+                        )
+                    }
+                    return@launch
+                }
                 // Simpan transaksi (skip di BILL mode)
                 txsToSave.forEach { transactionRepo.insertTransaction(it) }
 

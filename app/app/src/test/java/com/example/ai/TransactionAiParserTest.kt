@@ -48,21 +48,21 @@ class TransactionAiParserTest {
         assertEquals("regex", result1.source)
         assertEquals(1, result1.transactions.size)
         assertEquals("expense", result1.transactions[0].type)
-        assertEquals("Lainnya", result1.transactions[0].category) // Changed from "Makanan" to "Lainnya" due to removal of alias matching
+        assertEquals("Makanan", result1.transactions[0].category)
         assertEquals(15000.0, result1.transactions[0].amount, 0.1)
 
         val result2 = parser.parse("gaji harian 2jt", sampleCategories)
         assertEquals("regex", result2.source)
         assertEquals(1, result2.transactions.size)
-        assertEquals("expense", result2.transactions[0].type) // Changed from "income" (Gaji typeClass) to default fallback "expense"
-        assertEquals("Lainnya", result2.transactions[0].category) // Changed from "Gaji" to "Lainnya" due to removal of alias matching
+        assertEquals("income", result2.transactions[0].type)
+        assertEquals("Gaji", result2.transactions[0].category)
         assertEquals(2000000.0, result2.transactions[0].amount, 0.1)
 
         val result3 = parser.parse("ojek 10k", sampleCategories)
         assertEquals("regex", result3.source)
         assertEquals(1, result3.transactions.size)
         assertEquals("expense", result3.transactions[0].type)
-        assertEquals("Lainnya", result3.transactions[0].category) // Changed from "Transport" to "Lainnya" due to removal of alias matching
+        assertEquals("Transport", result3.transactions[0].category)
         assertEquals(10000.0, result3.transactions[0].amount, 0.1)
     }
 
@@ -168,7 +168,7 @@ class TransactionAiParserTest {
         val result = parser.parse("ojek 12000", sampleCategories)
         assertEquals("regex", result.source)
         assertEquals(1, result.transactions.size)
-        assertEquals("Lainnya", result.transactions[0].category) // Changed from "Transport" to "Lainnya" due to removal of alias matching
+        assertEquals("Transport", result.transactions[0].category)
         assertEquals(12000.0, result.transactions[0].amount, 0.1)
     }
 
@@ -183,7 +183,7 @@ class TransactionAiParserTest {
         assertEquals("regex", result.source)
         // It should only have 1 transaction (makan bakso) and ignore the complaint (which has 0 amount)
         assertEquals(1, result.transactions.size)
-        assertEquals("Lainnya", result.transactions[0].category) // Changed from "Makanan" to "Lainnya" due to removal of alias matching
+        assertEquals("Makanan", result.transactions[0].category)
         assertEquals(15000.0, result.transactions[0].amount, 0.1)
     }
 
@@ -227,7 +227,7 @@ class TransactionAiParserTest {
         assertEquals("regex", result.source)
         assertEquals(1, result.transactions.size)
         assertEquals(12000.0, result.transactions[0].amount, 0.1)
-        assertEquals("Lainnya", result.transactions[0].category) // Changed from "Makanan" to "Lainnya" due to removal of alias matching
+        assertEquals("Makanan", result.transactions[0].category)
         assertEquals("makan", result.transactions[0].description)
     }
 
@@ -240,7 +240,8 @@ class TransactionAiParserTest {
         assertEquals("regex", result.source)
         assertEquals(1, result.transactions.size)
         assertEquals(1500000.0, result.transactions[0].amount, 0.1)
-        assertEquals("Lainnya", result.transactions[0].category) // Changed from "Gaji" to "Lainnya" due to removal of alias matching
+        assertEquals("income", result.transactions[0].type)
+        assertEquals("Gaji", result.transactions[0].category)
     }
 
     @Test
@@ -252,7 +253,7 @@ class TransactionAiParserTest {
         assertEquals("regex", result.source)
         assertEquals(1, result.transactions.size)
         assertEquals(10000.0, result.transactions[0].amount, 0.1) // Default Lainnya category now
-        assertEquals("Lainnya", result.transactions[0].category)
+        assertEquals("Makanan", result.transactions[0].category)
     }
 
     @Test

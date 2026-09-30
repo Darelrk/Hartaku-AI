@@ -138,7 +138,7 @@ class TransactionAiParser(
                 }
             }
 
-            val prompt = buildPrompt(categories)
+            val prompt = buildPrompt(categories, mode)
             try {
                 val response = nimClient.chat(
                     systemPrompt = prompt,
@@ -214,7 +214,7 @@ class TransactionAiParser(
      * Instruksi yang sangat cerdas untuk memisahkan obrolan santai, feedback, atau keluhan
      * dari transaksi keuangan yang sebenarnya.
      */
-    private fun buildPrompt(categories: List<Category>): String {
+    private fun buildPrompt(categories: List<Category>, mode: InputMode = InputMode.EXPENSE): String {
         val categoryListStr = categories.joinToString("\n") { cat ->
             val parsedAliases = try {
                 JSONArray(cat.aliases).let { arr ->
@@ -257,6 +257,7 @@ Kembalikan HANYA JSON array dengan format berikut:
 9. Confidence Score: Tentukan tingkat keyakinan ekstraksi dari 0.0 (bukan transaksi/ambigu sekali) sampai 1.0 (sangat yakin). Gunakan default 0.8 jika ragu.
 10. Format Constraint: Kembalikan HANYA valid JSON array. JANGAN sertakan markdown fences seperti ```json ... ``` atau penjelasan apa pun.
 11. Spesifik Klasifikasi Laundry & Tanaman: Transaksi terkait laundry/cuci pakaian, setrika, atau pembelian tanaman hias, bunga, bibit tanaman harus dimasukkan ke kategori "Belanja", BUKAN ke "Transport" atau "Investasi".
+12. Tipe Transaksi Ikuti Mode Input yang sedang aktif. Jika mode INCOME, seluruh hasil WAJIB bertipe "income". Jika mode EXPENSE, WAJIB bertipe "expense" kecuali teks menyebut gaji, bonus, gajian, atau pendapatan. Jika mode BILL, keluarkan hanya tagihan berulang.
 
 ### CONTOH FEW-SHOT:
 1. Input: "makan bakso 15rb"
@@ -273,6 +274,12 @@ Kembalikan HANYA JSON array dengan format berikut:
      {"type": "expense", "category": "Lainnya", "amount": 20000, "description": "Belanja Indomaret", "confidence": 0.9},
      {"type": "expense", "category": "Makanan", "amount": 30000, "description": "Susu", "confidence": 1.0}
    ]
+
+4. Input: "gaji bulan ini 5 juta"
+   Output: [{"type": "income", "category": "Gaji", "amount": 5000000, "description": "Gaji bulan ini", "confidence": 1.0}]
+
+5. Input: "terima bonus 2jt"
+   Output: [{"type": "income", "category": "Gaji", "amount": 2000000, "description": "Bonus", "confidence": 1.0}]
 
 Input User:
         """.trimIndent()
@@ -384,13 +391,43 @@ Input User:
             val desc = extractDescription(part)
             if (desc.isBlank()) return@mapNotNull null
 
+            val matched = resolveCategory(desc, categories)
             ParsedTransaction(
-                type = "expense", // Default fallback regex to expense since we no longer have categories type mapping
-                category = "Lainnya",
+                type = if (matched?.typeClass == "INCOME") "income" else "expense",
+                category = matched?.name ?: "Lainnya",
                 amount = amount,
                 description = desc
             )
         }
+    }
+
+    /**
+     * Cocokkan deskripsi bebas dengan kategori DB lewat nama dan alias.
+     *
+     * Token terpanjang menang supaya alias yang lebih spesifik ("gajian")
+     * mengalahkan alias yang lebih umum ("gaji"). Mengembalikan null bila
+     * tidak ada token yang cocok.
+     */
+    private fun resolveCategory(desc: String, categories: List<Category>): Category? {
+        val lower = desc.lowercase()
+        var best: Category? = null
+        var bestLen = 0
+        for (cat in categories) {
+            val aliases = try {
+                JSONArray(cat.aliases).let { arr ->
+                    (0 until arr.length()).map { arr.getString(it).lowercase() }
+                }
+            } catch (_: Exception) {
+                emptyList()
+            }
+            for (token in listOf(cat.name.lowercase()) + aliases) {
+                if (token.isNotBlank() && lower.contains(token) && token.length > bestLen) {
+                    best = cat
+                    bestLen = token.length
+                }
+            }
+        }
+        return best
     }
 
     private fun detectSlangAmount(text: String): Double? {
