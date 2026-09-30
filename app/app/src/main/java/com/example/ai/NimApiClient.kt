@@ -52,6 +52,16 @@ class NimApiClient(
         .build()
 ) : ChatClient {
 
+    // Client kedua khusus jalur chat/stream. Hosted NIM dari jaringan ini lambat di
+    // sisi time-to-header, bukan error: probe 2026-09-30 (6 request, tools+stream)
+    // → 6/6 sukses, header 12-60 detik (median 31), token pertama 22-89 detik.
+    // readTimeout 20 detik di [client] membuat gagal SEBELUM header dibaca, jadi
+    // Tanya AI selalu "sedang bermasalah" padahal endpoint sehat. Client ini hanya
+    // dipakai chat; parse transaksi tetap [client] supaya gagal cepat ke regex.
+    private val chatClient: OkHttpClient = client.newBuilder()
+        .readTimeout(90, TimeUnit.SECONDS)
+        .build()
+
     private val jsonMediaType = "application/json".toMediaType()
 
     override suspend fun chat(
@@ -164,7 +174,7 @@ class NimApiClient(
             .post(requestBody)
             .build()
 
-        val response = withContext(Dispatchers.IO) { client.newCall(request).execute() }
+        val response = withContext(Dispatchers.IO) { chatClient.newCall(request).execute() }
         if (!response.isSuccessful) {
             val errBody = response.body?.string() ?: "unknown"
             throw Exception("NIM API error ${response.code}: ${errBody.take(200)}")
@@ -234,7 +244,7 @@ class NimApiClient(
             .post(requestBody)
             .build()
 
-        val response = withContext(Dispatchers.IO) { client.newCall(request).execute() }
+        val response = withContext(Dispatchers.IO) { chatClient.newCall(request).execute() }
         if (!response.isSuccessful) {
             val errBody = response.body?.string() ?: "unknown"
             throw Exception("NIM API error ${response.code}: ${errBody.take(200)}")
@@ -392,7 +402,7 @@ class NimApiClient(
                 .post(requestBody)
                 .build()
 
-            val response = client.newCall(request).await()
+            val response = chatClient.newCall(request).await()
             val responseBody = response.body?.string()
                 ?: return@withContext Result.failure(Exception("Empty response"))
 
